@@ -69,6 +69,14 @@ async function lockUser(tx: Tx, userId: string) {
  *  - Only that one nullable column is written. `status`, `paid_at` and the period columns are
  *    never touched, so this can never grant, extend or revoke access.
  *  - Idempotent: a second run sees a non-null stored id and does nothing.
+ *
+ * NOT COVERED BY ANY AUTOMATED TEST: the concurrency guarantees above (racing under the advisory
+ * lock, the `FOR UPDATE` re-read, the `IS NULL` guard) are exercised by nothing in this repo's test
+ * suite. `subscription-backfill.test.ts` only pins the pure predicate `needsSubscriptionIdBackfill`,
+ * which has no locking, no transaction and no database — it cannot observe a race at all. What would
+ * cover this: an integration test that opens two real Postgres connections and drives two concurrent
+ * `paid` deliveries for the same charge id through this function, then asserts exactly one write wins
+ * and the id ends up stored.
  */
 async function backfillSubscriptionId(
   tx: Tx,
@@ -208,9 +216,12 @@ export async function POST(req: NextRequest) {
           .where(and(eq(purchases.id, row.id), eq(purchases.status, "pending")));
       });
     } else {
-      // Fallback: nothing for this charge is still `pending`. Either the checkout-creation write
-      // never landed (nothing exists — insert), or the charge was already processed by a sibling
-      // event (a row exists — the only thing left worth doing is back-filling the subscription id).
+      // Fallback: the unlocked pre-select above found nothing still `pending`. Three cases reach
+      // here: nothing exists yet (insert), the charge was already processed by a sibling event (a
+      // `paid` row exists — the only thing left worth doing is back-filling the subscription id),
+      // or the row exists but is STILL `pending` (this webhook overtook the checkout route's own
+      // pending INSERT, which lands after its outbound create-checkout call returns). That third
+      // case is handled below by re-checking `status` under the lock.
       const known = await db
         .select({ userId: purchases.userId })
         .from(purchases)
@@ -243,22 +254,34 @@ export async function POST(req: NextRequest) {
 
       // Only insert a paid row if none exists yet for this charge — this makes a replayed
       // webhook a no-op instead of creating a duplicate paid purchase.
+      let stillPending = false;
       try {
         await db.transaction(async (tx) => {
           await lockUser(tx, ownerId);
           const existing = await tx
-            .select({ id: purchases.id })
+            .select({ id: purchases.id, status: purchases.status })
             .from(purchases)
             .where(eq(purchases.providerChargeId, event.providerChargeId))
             .limit(1)
             .for("update");
 
           if (existing.length > 0) {
-            // FIX (the checkout.completed-before-subscription.completed hole): the row is already
-            // `paid`, so the pending-row branch above could not match it and the subscription id
-            // it carries had nowhere to go. Deposit it through the ONE shared back-fill path,
-            // which re-reads under the lock and carries the `IS NULL` guard on the UPDATE.
+            // FIX (the checkout.completed-before-subscription.completed hole): if the row is
+            // already `paid`, the pending-row branch above could not match it and the subscription
+            // id it carries had nowhere to go. Deposit it through the ONE shared back-fill path,
+            // which re-reads under the lock and carries the `IS NULL` guard on the UPDATE. This is
+            // safe and idempotent regardless of the row's status, so it always runs.
             await backfillSubscriptionId(tx, existing[0]!.id, event.providerSubscriptionId);
+
+            // FIX (the still-pending hole): this used to assume `paid` and return 200 unconditionally.
+            // But this webhook can overtake the checkout route's own pending INSERT (which lands
+            // after its outbound create-checkout call returns), so the row found here may still be
+            // `pending` rather than already processed. Flipping it to `paid` is NOT this branch's
+            // job — the pending-row branch above owns that, and re-implementing it here would mean
+            // computing the period twice from two different code paths. Only the back-fill above is
+            // performed; the caller is told to retry via a 5xx below so the redelivered event takes
+            // the pending-row branch once the INSERT has landed and grants access there.
+            if (existing[0]!.status === "pending") stillPending = true;
             return;
           }
 
@@ -304,6 +327,17 @@ export async function POST(req: NextRequest) {
             `resolved to user ${ownerId}:`,
           err,
         );
+      }
+
+      if (stillPending) {
+        // No write happened above besides the idempotent back-fill, so retrying this exact event
+        // is safe: the redelivery re-enters at the top, finds the row still `pending`, and takes
+        // the pending-row branch, which flips it to `paid` and grants the period.
+        console.error(
+          `[payments] paid webhook for charge ${event.providerChargeId} found its row still ` +
+            `\`pending\`; deferring to a retry instead of granting access early`,
+        );
+        return NextResponse.json({ error: "row_still_pending" }, { status: 503 });
       }
     }
   } else if (event.type === "renewed") {
