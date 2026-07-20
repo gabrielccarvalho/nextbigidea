@@ -3275,8 +3275,11 @@ git commit -m "feat(web): add server-gated idea detail page"
 ## Task 16: Admin page (draft review + publish)
 
 **Files:**
-- Create: `apps/web/lib/admin.ts`
+- Create: `apps/web/lib/admin.ts` (pure `isAdmin` — no `@/lib/auth` or DB import)
+- Create: `apps/web/lib/require-admin.ts` (session-backed `requireAdmin`)
 - Test: `apps/web/lib/admin.test.ts`
+
+> Seventh pure/DB split. `@/lib/auth` transitively imports `@workspace/db`, whose client throws at import without `DATABASE_URL`, so the pure tested function needs its own module.
 - Create: `apps/web/app/admin/actions.ts`, `apps/web/app/admin/page.tsx`
 
 **Interfaces:**
