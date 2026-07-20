@@ -3003,13 +3003,38 @@ export function IdeaCard({ idea }: { idea: Idea }) {
 }
 ```
 
+`apps/web/lib/teaser.ts` — the narrowing seam for every locked-idea render path:
+```ts
+import type { Idea } from "@workspace/db";
+
+// A branded type that ONLY `toTeaserIdea` can produce.
+//
+// Why not just `Pick<Idea, "title" | "niche">`: TypeScript's excess-property
+// check fires only on object LITERALS. A plain Pick would still accept
+// `<LockedTeaser idea={idea} />` passing a full Idea, because Idea is
+// structurally assignable to a subset of itself — no compile error, and every
+// locked field silently crosses the wire again. The brand makes a full Idea
+// structurally incompatible, so the leak becomes unrepresentable rather than
+// merely absent today.
+declare const teaserBrand: unique symbol;
+
+export type TeaserIdea = Pick<Idea, "title" | "niche"> & {
+  readonly [teaserBrand]: true;
+};
+
+export function toTeaserIdea(idea: Pick<Idea, "title" | "niche">): TeaserIdea {
+  return { title: idea.title, niche: idea.niche } as TeaserIdea;
+}
+```
+
 `apps/web/components/locked-teaser.tsx`:
 ```tsx
-import type { Idea } from "@workspace/db";
+import type { TeaserIdea } from "@/lib/teaser";
 
 // Locked teaser: ONLY non-sensitive fields (title, niche) are rendered.
 // demandScore / MRR / description are never sent to the client for locked ideas.
-export function LockedTeaser({ idea }: { idea: Pick<Idea, "title" | "niche"> }) {
+// The TeaserIdea brand forces every caller through toTeaserIdea().
+export function LockedTeaser({ idea }: { idea: TeaserIdea }) {
   return (
     <div className="relative rounded-lg border p-4">
       <div className="mb-1 text-xs uppercase text-muted-foreground">{idea.niche}</div>
@@ -3091,8 +3116,10 @@ export default async function IdeasPage() {
           access.hasFullAccess || idea.isFree ? (
             <IdeaCard key={idea.id} idea={idea} />
           ) : (
-            // Only title + niche cross the wire for locked ideas.
-            <LockedTeaser key={idea.id} idea={{ title: idea.title, niche: idea.niche }} />
+            // Only title + niche cross the wire for locked ideas. toTeaserIdea
+            // is the ONLY way to produce a TeaserIdea, so a future edit cannot
+            // widen this back to the full object without a compile error.
+            <LockedTeaser key={idea.id} idea={toTeaserIdea(idea)} />
           ),
         )}
       </div>
