@@ -391,7 +391,7 @@ git commit -m "feat(db): add shared Drizzle schema, Neon client, and types"
   - `interface SourceAdapter { readonly name: string; enabled(env: PipelineEnv): boolean; fetchPosts(since: Date, env: PipelineEnv): Promise<RawPost[]> }`
   - `type EnrichedIdea = { title: string; oneLiner: string; description: string; niche: string; keywords: string; demandScore: number; mrrLow: number; mrrHigh: number; competitionNotes: string; validationSignals: string[] }`
   - `function loadEnv(): PipelineEnv`
-  - `function enabledAdapters(env: PipelineEnv): SourceAdapter[]` — resolves the registry against env flags.
+  - `function enabledAdapters(adapters: SourceAdapter[], env: PipelineEnv): SourceAdapter[]` — pure; filters a caller-supplied adapter list against env flags. Callers pass the list, so there is exactly ONE registry (the `ADAPTERS` array in `run.ts`, Task 10) and this stays testable without importing Playwright.
 
 - [ ] **Step 1: Create manifest**
 
@@ -455,7 +455,8 @@ export default defineConfig({
 `packages/pipeline/test/config.test.ts`:
 ```ts
 import { describe, expect, it } from "vitest";
-import { enabledAdapters, type PipelineEnv } from "../src/config";
+import { enabledAdapters } from "../src/config";
+import type { PipelineEnv, SourceAdapter } from "../src/types";
 
 function baseEnv(overrides: Partial<PipelineEnv> = {}): PipelineEnv {
   return {
@@ -468,9 +469,19 @@ function baseEnv(overrides: Partial<PipelineEnv> = {}): PipelineEnv {
   };
 }
 
+function fake(name: string, enabled: (e: PipelineEnv) => boolean): SourceAdapter {
+  return { name, enabled, fetchPosts: async () => [] };
+}
+
+const ADAPTERS: SourceAdapter[] = [
+  fake("reddit", (e) => e.sources.reddit),
+  fake("hackernews", (e) => e.sources.hackernews),
+  fake("producthunt", (e) => e.sources.producthunt),
+];
+
 describe("enabledAdapters", () => {
   it("returns only adapters whose source flag is true", () => {
-    const names = enabledAdapters(baseEnv()).map((a) => a.name).sort();
+    const names = enabledAdapters(ADAPTERS, baseEnv()).map((a) => a.name).sort();
     expect(names).toEqual(["hackernews", "reddit"]);
   });
 
@@ -478,7 +489,7 @@ describe("enabledAdapters", () => {
     const env = baseEnv({
       sources: { reddit: false, hackernews: false, producthunt: false, x: false, linkedin: false },
     });
-    expect(enabledAdapters(env)).toEqual([]);
+    expect(enabledAdapters(ADAPTERS, env)).toEqual([]);
   });
 });
 ```
@@ -547,38 +558,13 @@ export interface SourceAdapter {
 import type { PipelineEnv, SourceAdapter } from "./types";
 export type { PipelineEnv } from "./types";
 
-// The registry is a plain array. To swap an unofficial adapter for an official
-// one later, replace the module in this list — nothing downstream changes.
-export function registry(): SourceAdapter[] {
-  // Lazy require keeps Playwright out of the import graph for tests that only
-  // touch config. Adapters are added in later tasks; until then this is filled
-  // by dynamic imports in run.ts. For enablement resolution we only need the
-  // static descriptors below.
-  return STATIC_REGISTRY;
-}
-
-// Minimal descriptors so enablement can be resolved without importing heavy
-// adapter modules. Each real adapter (Tasks 3-6) sets its own `name`.
-const STATIC_REGISTRY: SourceAdapter[] = [
-  makeDescriptor("reddit", (e) => e.sources.reddit),
-  makeDescriptor("hackernews", (e) => e.sources.hackernews),
-  makeDescriptor("producthunt", (e) => e.sources.producthunt),
-  makeDescriptor("x", (e) => e.sources.x),
-  makeDescriptor("linkedin", (e) => e.sources.linkedin),
-];
-
-function makeDescriptor(name: string, enabled: (e: PipelineEnv) => boolean): SourceAdapter {
-  return {
-    name,
-    enabled,
-    async fetchPosts() {
-      throw new Error(`adapter ${name} not wired`);
-    },
-  };
-}
-
-export function enabledAdapters(env: PipelineEnv): SourceAdapter[] {
-  return registry().filter((a) => a.enabled(env));
+// Pure: filters a caller-supplied adapter list against the env flags.
+// The caller owns the list (see the ADAPTERS array in run.ts) so there is
+// exactly one registry, and this stays testable without pulling Playwright
+// into the import graph. Swapping an unofficial adapter for an official one
+// later means editing that one array — nothing here changes.
+export function enabledAdapters(adapters: SourceAdapter[], env: PipelineEnv): SourceAdapter[] {
+  return adapters.filter((a) => a.enabled(env));
 }
 
 export function loadEnv(): PipelineEnv {
@@ -607,7 +593,7 @@ export function loadEnv(): PipelineEnv {
 }
 ```
 
-> The registry uses static descriptors here so config/enablement is testable in isolation. `run.ts` (Task 10) imports the real adapter implementations and maps them by `name`. Keeping the descriptor list and real-adapter list aligned by `name` is the seam that makes adapters swappable.
+> `enabledAdapters` takes the adapter list as a parameter rather than owning a module-level registry. That keeps a single source of truth (`ADAPTERS` in `run.ts`, Task 10), keeps this module free of Playwright imports, and makes the function trivially testable with fake adapters.
 
 - [ ] **Step 7: Run the test — verify it passes**
 
@@ -1918,7 +1904,7 @@ async function linkEvidence(ideaId: number, postIds: number[]): Promise<void> {
 ```ts
 import { db, pipelineRuns } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { loadEnv } from "./config";
+import { enabledAdapters, loadEnv } from "./config";
 import type { RawPost, SourceAdapter } from "./types";
 import { redditAdapter } from "./adapters/reddit";
 import { hackerNewsAdapter } from "./adapters/hackernews";
@@ -1954,7 +1940,7 @@ export async function runPipeline(): Promise<PipelineRunReport> {
 
   // 1. Fetch — each adapter isolated. A failure is recorded and skipped.
   const collected: RawPost[] = [];
-  for (const adapter of ADAPTERS.filter((a) => a.enabled(env))) {
+  for (const adapter of enabledAdapters(ADAPTERS, env)) {
     try {
       const posts = await adapter.fetchPosts(since, env);
       report.addSource(adapter.name, posts.length);
