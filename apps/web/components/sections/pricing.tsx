@@ -1,10 +1,13 @@
 import { Section, SectionHeading } from "@/components/section";
 import { PRICING, PRICING_SECTION } from "@/lib/content";
 import { PaywallCta } from "@/components/paywall-cta";
-import { getViewerAccess } from "@/lib/viewer-access";
 
-export async function Pricing() {
-  const access = await getViewerAccess();
+export function Pricing() {
+  // The landing page intentionally avoids a session lookup. The `authenticated` prop
+  // only changes the CTA's button label (e.g., "Sign in to subscribe" vs "Subscribe now"),
+  // while the checkout call itself is unconditional. A per-request session read would
+  // force the entire marketing homepage out of static generation, so we pass false here.
+  // If this changes in the future, carefully consider the static rendering implications.
 
   return (
     <Section id="pricing">
@@ -58,7 +61,7 @@ export async function Pricing() {
           </ul>
 
           <div className="mt-6">
-            <PaywallCta authenticated={access.userId != null} />
+            <PaywallCta authenticated={false} />
           </div>
         </div>
       </div>
