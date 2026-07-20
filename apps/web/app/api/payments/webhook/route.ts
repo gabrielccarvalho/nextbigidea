@@ -495,6 +495,10 @@ export async function POST(req: NextRequest) {
       // back. The paid event then lands afterwards and grants a full year that was charged back,
       // with no second refund delivery to undo it. A 5xx gets the refund redelivered and the
       // retry succeeds once the paid row exists.
+      await notifyPaymentFailure({
+        kind: "refund_target_not_found",
+        detail: `charge ${event.providerChargeId}`,
+      });
       return NextResponse.json({ error: "refund_target_not_found" }, { status: 503 });
     }
   } else if (event.type === "cancelled") {

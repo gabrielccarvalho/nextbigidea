@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { db, purchases } from "@workspace/db";
 import { getPaymentProvider } from "@/lib/payments";
 import { PRICE_CENTS } from "@/lib/payments/provider";
+import { notifyPaymentFailure } from "@/lib/payments/alert";
 
 // A `pending` row created within this window is treated as an in-flight checkout, not an
 // abandoned one. Each `createCheckout` call creates a REAL auto-renewing subscription at
@@ -67,14 +68,36 @@ export async function POST() {
     completionUrl: `${appUrl}/account?purchase=success`,
   });
 
-  await db.insert(purchases).values({
-    userId: session.user.id,
-    provider: provider.name,
-    providerChargeId: checkout.providerChargeId,
-    amountCents: PRICE_CENTS,
-    currency: "BRL",
-    status: "pending",
-  });
+  try {
+    await db.insert(purchases).values({
+      userId: session.user.id,
+      provider: provider.name,
+      providerChargeId: checkout.providerChargeId,
+      amountCents: PRICE_CENTS,
+      currency: "BRL",
+      status: "pending",
+    });
+  } catch (err) {
+    // FIX: the subscription already exists at AbacatePay — `createCheckout` above succeeded and
+    // billing is live — so this INSERT is an optimization, not a requirement. If it throws (pool
+    // exhaustion, connection blip), the pending row simply never gets written; the webhook's own
+    // fallback branch (see the `paid` handler's `known.length === 0` case) already reconstructs a
+    // paid row from `event.externalId` when no pending row exists, precisely to cover this case.
+    // Returning a 500 here would be WORSE than doing nothing: the customer would see a failure,
+    // retry, sail past both double-subscription guards above (neither of which found a row to
+    // match), and mint a SECOND live auto-renewing subscription that bills them every year forever.
+    // So this is caught, logged, alerted, and the request still succeeds — the customer completes
+    // payment normally and the webhook fallback records it.
+    console.error(
+      `[payments] failed to write pending row for charge ${checkout.providerChargeId} ` +
+        `(user ${session.user.id}); the AbacatePay subscription was already created and is live`,
+      err,
+    );
+    await notifyPaymentFailure({
+      kind: "pending_row_insert_failed",
+      detail: `charge ${checkout.providerChargeId}, user ${session.user.id}`,
+    });
+  }
 
   return NextResponse.json({ url: checkout.url });
 }
