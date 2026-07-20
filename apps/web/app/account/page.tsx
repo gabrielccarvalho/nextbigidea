@@ -13,11 +13,11 @@ export default async function AccountPage() {
     <>
       <SiteHeader />
       <main className="mx-auto max-w-2xl px-4 py-10">
-        <h1 className="text-2xl font-bold">Your account</h1>
+        <h1 className="text-2xl font-bold">{ACCOUNT_PAGE.title}</h1>
 
         {!access.userId ? (
           <div className="mt-6">
-            <p className="text-muted-foreground">Sign in to manage your access.</p>
+            <p className="text-muted-foreground">{ACCOUNT_PAGE.signInPrompt}</p>
             <div className="mt-4">
               <AuthButtons />
             </div>
@@ -36,7 +36,7 @@ export default async function AccountPage() {
               .
             </p>
             <Link href="/ideas" className="mt-4 inline-block underline">
-              Go to the ideas &rarr;
+              {ACCOUNT_PAGE.ideasLinkLabel} &rarr;
             </Link>
             <CancelSubscription />
           </div>
@@ -61,7 +61,7 @@ export default async function AccountPage() {
           </div>
         ) : (
           <div className="mt-6">
-            <p className="text-muted-foreground">You&apos;re on the free plan (5 ideas).</p>
+            <p className="text-muted-foreground">{ACCOUNT_PAGE.freePlanMessage}</p>
             <div className="mt-4">
               <PaywallCta authenticated />
             </div>

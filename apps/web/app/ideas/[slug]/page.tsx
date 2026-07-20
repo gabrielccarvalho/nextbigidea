@@ -69,30 +69,27 @@ export default async function IdeaDetailPage({
         </div>
 
         <section className="mt-6">
-          <h2 className="font-semibold">The opportunity</h2>
+          <h2 className="font-semibold">{IDEA_DETAIL.opportunityHeading}</h2>
           <p className="mt-1 whitespace-pre-line text-sm">{idea.description}</p>
         </section>
 
         <section className="mt-6">
-          <h2 className="font-semibold">MRR estimate</h2>
+          <h2 className="font-semibold">{IDEA_DETAIL.mrrHeading}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            ${idea.mrrLow}–${idea.mrrHigh}/mo is a conservative, directional range — not a
-            forecast. It is derived from audience-size signals in the source posts, a plausible
-            price point for this niche, and a low assumed conversion rate. Treat it as a heuristic
-            for prioritizing ideas, not a prediction of actual revenue.
+            ${idea.mrrLow}–${idea.mrrHigh}/mo {IDEA_DETAIL.mrrBody}
           </p>
         </section>
 
         {idea.competitionNotes && (
           <section className="mt-6">
-            <h2 className="font-semibold">Competition</h2>
+            <h2 className="font-semibold">{IDEA_DETAIL.competitionHeading}</h2>
             <p className="mt-1 text-sm">{idea.competitionNotes}</p>
           </section>
         )}
 
         {idea.validationSignals.length > 0 && (
           <section className="mt-6">
-            <h2 className="font-semibold">Validation signals</h2>
+            <h2 className="font-semibold">{IDEA_DETAIL.validationHeading}</h2>
             <ul className="mt-1 list-disc pl-5 text-sm">
               {idea.validationSignals.map((v, i) => (
                 <li key={i}>{v}</li>
@@ -102,7 +99,9 @@ export default async function IdeaDetailPage({
         )}
 
         <section className="mt-6">
-          <h2 className="font-semibold">Sources ({evidence.length})</h2>
+          <h2 className="font-semibold">
+            {IDEA_DETAIL.sourcesHeading} ({evidence.length})
+          </h2>
           <ul className="mt-2 space-y-2">
             {evidence.map((p) => (
               <li key={p.id} className="text-sm">

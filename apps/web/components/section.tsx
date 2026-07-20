@@ -3,15 +3,18 @@ import { cn } from "@workspace/ui/lib/utils";
 export function Section({
   id,
   className,
+  ariaLabel,
   children,
 }: {
   id?: string;
   className?: string;
+  ariaLabel?: string;
   children: React.ReactNode;
 }) {
   return (
     <section
       id={id}
+      aria-label={ariaLabel}
       className={cn("mx-auto max-w-6xl scroll-mt-24 px-6 py-20 sm:py-28", className)}
     >
       {children}

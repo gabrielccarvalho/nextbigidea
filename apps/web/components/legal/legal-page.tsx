@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { COMPANY } from "@/lib/content";
+import { COMPANY, LEGAL_PAGE } from "@/lib/content";
 
 export function LegalPage({
   title,
@@ -20,14 +20,14 @@ export function LegalPage({
           href="/"
           className="font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
         >
-          &larr; Back to {COMPANY.name}
+          &larr; {LEGAL_PAGE.backToPrefix} {COMPANY.name}
         </Link>
 
         <div className="mt-8 border-b border-border pb-8">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{title}</h1>
           <p className="mt-4 text-muted-foreground">{intro}</p>
           <p className="mt-6 font-mono text-xs text-muted-foreground">
-            Last updated {COMPANY.lastUpdated}
+            {LEGAL_PAGE.lastUpdatedLabel} {COMPANY.lastUpdated}
           </p>
         </div>
 

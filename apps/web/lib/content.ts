@@ -38,7 +38,7 @@ export const HERO = {
   primaryCta: "Browse the ideas",
   primaryHref: "/ideas",
   secondaryCta: "See how it works",
-  secondaryHref: "#how-it-works",
+  secondaryHref: "/#how-it-works",
 } as const;
 
 export const PROBLEM = {
@@ -113,10 +113,33 @@ export const IDEAS_PAGE = {
 export const IDEA_DETAIL = {
   lockedMessage:
     "This idea is locked. Subscribe to see the demand evidence, sources, MRR estimate, and validation signals.",
+  opportunityHeading: "The opportunity",
+  mrrHeading: "MRR estimate",
+  mrrBody:
+    "is a conservative, directional range — not a forecast. It is derived from audience-size signals in the source posts, a plausible price point for this niche, and a low assumed conversion rate. Treat it as a heuristic for prioritizing ideas, not a prediction of actual revenue.",
+  competitionHeading: "Competition",
+  validationHeading: "Validation signals",
+  sourcesHeading: "Sources",
 } as const;
 
 export const ACCOUNT_PAGE = {
+  title: "Your account",
+  signInPrompt: "Sign in to manage your access.",
   accessActiveHeading: "Access active",
+  freePlanMessage: `You're on the free plan (${PRICING.freeIdeaCount} ideas).`,
+  ideasLinkLabel: "Go to the ideas",
+} as const;
+
+export const PROOF_BAR = {
+  ariaLabel: "Platform statistics",
+  postsLabel: "posts read",
+  ideasLabel: "ideas published",
+  sourcesLabel: "sources",
+} as const;
+
+export const LEGAL_PAGE = {
+  backToPrefix: "Back to",
+  lastUpdatedLabel: "Last updated",
 } as const;
 
 export const PRICING_SECTION = {
@@ -139,7 +162,6 @@ export const PRICING_SECTION = {
       "Source links on every idea",
       "New ideas every month",
     ],
-    cta: "Get full access",
   },
   terms: [
     "Renews annually until you cancel.",
