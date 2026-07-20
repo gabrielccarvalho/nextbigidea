@@ -216,19 +216,27 @@ export const ideaEvidence = pgTable(
 
 // --- Payments ---
 
-export const purchases = pgTable("purchases", {
-  id: serial("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  provider: text("provider").notNull(), // abacatepay
-  providerChargeId: text("provider_charge_id").notNull(),
-  amountCents: integer("amount_cents").notNull(),
-  currency: text("currency").notNull().default("BRL"),
-  status: text("status").notNull().default("pending"), // pending | paid | refunded
-  paidAt: timestamp("paid_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const purchases = pgTable(
+  "purchases",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(), // abacatepay
+    providerChargeId: text("provider_charge_id").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    currency: text("currency").notNull().default("BRL"),
+    status: text("status").notNull().default("pending"), // pending | paid | refunded
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  // Payment providers RETRY webhooks. Without this constraint, two concurrent
+  // deliveries of the same charge can both pass a check-then-insert and write
+  // duplicate paid rows. The unique index makes idempotency a database
+  // guarantee rather than a race the application hopes to win.
+  (t) => [uniqueIndex("purchases_provider_charge_uq").on(t.providerChargeId)],
+);
 
 // --- Better Auth core tables ---
 // Field names/types follow Better Auth's expected schema. Do not rename columns.
@@ -391,7 +399,7 @@ git commit -m "feat(db): add shared Drizzle schema, Neon client, and types"
   - `interface SourceAdapter { readonly name: string; enabled(env: PipelineEnv): boolean; fetchPosts(since: Date, env: PipelineEnv): Promise<RawPost[]> }`
   - `type EnrichedIdea = { title: string; oneLiner: string; description: string; niche: string; keywords: string; demandScore: number; mrrLow: number; mrrHigh: number; competitionNotes: string; validationSignals: string[] }`
   - `function loadEnv(): PipelineEnv`
-  - `function enabledAdapters(env: PipelineEnv): SourceAdapter[]` — resolves the registry against env flags.
+  - `function enabledAdapters(adapters: SourceAdapter[], env: PipelineEnv): SourceAdapter[]` — pure; filters a caller-supplied adapter list against env flags. Callers pass the list, so there is exactly ONE registry (the `ADAPTERS` array in `run.ts`, Task 10) and this stays testable without importing Playwright.
 
 - [ ] **Step 1: Create manifest**
 
@@ -455,7 +463,8 @@ export default defineConfig({
 `packages/pipeline/test/config.test.ts`:
 ```ts
 import { describe, expect, it } from "vitest";
-import { enabledAdapters, type PipelineEnv } from "../src/config";
+import { enabledAdapters } from "../src/config";
+import type { PipelineEnv, SourceAdapter } from "../src/types";
 
 function baseEnv(overrides: Partial<PipelineEnv> = {}): PipelineEnv {
   return {
@@ -468,9 +477,19 @@ function baseEnv(overrides: Partial<PipelineEnv> = {}): PipelineEnv {
   };
 }
 
+function fake(name: string, enabled: (e: PipelineEnv) => boolean): SourceAdapter {
+  return { name, enabled, fetchPosts: async () => [] };
+}
+
+const ADAPTERS: SourceAdapter[] = [
+  fake("reddit", (e) => e.sources.reddit),
+  fake("hackernews", (e) => e.sources.hackernews),
+  fake("producthunt", (e) => e.sources.producthunt),
+];
+
 describe("enabledAdapters", () => {
   it("returns only adapters whose source flag is true", () => {
-    const names = enabledAdapters(baseEnv()).map((a) => a.name).sort();
+    const names = enabledAdapters(ADAPTERS, baseEnv()).map((a) => a.name).sort();
     expect(names).toEqual(["hackernews", "reddit"]);
   });
 
@@ -478,7 +497,7 @@ describe("enabledAdapters", () => {
     const env = baseEnv({
       sources: { reddit: false, hackernews: false, producthunt: false, x: false, linkedin: false },
     });
-    expect(enabledAdapters(env)).toEqual([]);
+    expect(enabledAdapters(ADAPTERS, env)).toEqual([]);
   });
 });
 ```
@@ -547,38 +566,28 @@ export interface SourceAdapter {
 import type { PipelineEnv, SourceAdapter } from "./types";
 export type { PipelineEnv } from "./types";
 
-// The registry is a plain array. To swap an unofficial adapter for an official
-// one later, replace the module in this list — nothing downstream changes.
-export function registry(): SourceAdapter[] {
-  // Lazy require keeps Playwright out of the import graph for tests that only
-  // touch config. Adapters are added in later tasks; until then this is filled
-  // by dynamic imports in run.ts. For enablement resolution we only need the
-  // static descriptors below.
-  return STATIC_REGISTRY;
+// Pure: filters a caller-supplied adapter list against the env flags.
+// The caller owns the list (see the ADAPTERS array in run.ts) so there is
+// exactly one registry, and this stays testable without pulling Playwright
+// into the import graph. Swapping an unofficial adapter for an official one
+// later means editing that one array — nothing here changes.
+export function enabledAdapters(adapters: SourceAdapter[], env: PipelineEnv): SourceAdapter[] {
+  return adapters.filter((a) => a.enabled(env));
 }
 
-// Minimal descriptors so enablement can be resolved without importing heavy
-// adapter modules. Each real adapter (Tasks 3-6) sets its own `name`.
-const STATIC_REGISTRY: SourceAdapter[] = [
-  makeDescriptor("reddit", (e) => e.sources.reddit),
-  makeDescriptor("hackernews", (e) => e.sources.hackernews),
-  makeDescriptor("producthunt", (e) => e.sources.producthunt),
-  makeDescriptor("x", (e) => e.sources.x),
-  makeDescriptor("linkedin", (e) => e.sources.linkedin),
-];
-
-function makeDescriptor(name: string, enabled: (e: PipelineEnv) => boolean): SourceAdapter {
-  return {
-    name,
-    enabled,
-    async fetchPosts() {
-      throw new Error(`adapter ${name} not wired`);
-    },
-  };
-}
-
-export function enabledAdapters(env: PipelineEnv): SourceAdapter[] {
-  return registry().filter((a) => a.enabled(env));
+// The spend cap gates every paid stage via `spent < cap` comparisons. A NaN cap
+// makes every one of those false, so the run silently does NO paid work and
+// publishes zero ideas while still reporting success. Fail loudly at startup
+// instead of shipping a quietly-dead pipeline.
+export function parseUsdCap(raw: string | undefined): number {
+  if (raw === undefined || raw.trim() === "") return 5;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new Error(
+      `PIPELINE_MONTHLY_USD_CAP must be a positive number, got ${JSON.stringify(raw)}`,
+    );
+  }
+  return n;
 }
 
 export function loadEnv(): PipelineEnv {
@@ -591,7 +600,7 @@ export function loadEnv(): PipelineEnv {
   return {
     databaseUrl: req("DATABASE_URL"),
     anthropicApiKey: req("ANTHROPIC_API_KEY"),
-    monthlyUsdCap: Number(process.env.PIPELINE_MONTHLY_USD_CAP ?? "5"),
+    monthlyUsdCap: parseUsdCap(process.env.PIPELINE_MONTHLY_USD_CAP),
     sources: {
       reddit: flag("SOURCE_REDDIT"),
       hackernews: flag("SOURCE_HACKERNEWS"),
@@ -607,7 +616,7 @@ export function loadEnv(): PipelineEnv {
 }
 ```
 
-> The registry uses static descriptors here so config/enablement is testable in isolation. `run.ts` (Task 10) imports the real adapter implementations and maps them by `name`. Keeping the descriptor list and real-adapter list aligned by `name` is the seam that makes adapters swappable.
+> `enabledAdapters` takes the adapter list as a parameter rather than owning a module-level registry. That keeps a single source of truth (`ADAPTERS` in `run.ts`, Task 10), keeps this module free of Playwright imports, and makes the function trivially testable with fake adapters.
 
 - [ ] **Step 7: Run the test — verify it passes**
 
@@ -1114,6 +1123,14 @@ describe("degradable adapters enablement", () => {
     const e = env({ sources: { ...env().sources, linkedin: true } });
     expect(linkedinAdapter.enabled(e)).toBe(false);
   });
+
+  it("linkedin is enabled only with flag AND cookie", () => {
+    const e = env({
+      sources: { ...env().sources, linkedin: true },
+      linkedinSessionCookie: "li_at=abc",
+    });
+    expect(linkedinAdapter.enabled(e)).toBe(true);
+  });
 });
 ```
 
@@ -1200,6 +1217,7 @@ export const xAdapter: SourceAdapter = {
 
 `packages/pipeline/src/adapters/linkedin.ts`:
 ```ts
+import { createHash } from "node:crypto";
 import type { PipelineEnv, RawPost, SourceAdapter } from "../types";
 import { cookiesFor, withBrowser } from "./browser";
 
@@ -1219,11 +1237,16 @@ export const linkedinAdapter: SourceAdapter = {
       await page.goto(SEARCH, { waitUntil: "networkidle", timeout: 30_000 });
       const posts = await page.locator('div.feed-shared-update-v2').all();
       const out: RawPost[] = [];
-      for (const [i, el] of posts.slice(0, 40).entries()) {
+      for (const el of posts.slice(0, 40)) {
         const text = (await el.innerText().catch(() => "")).trim();
         const urn = await el.getAttribute("data-urn").catch(() => null);
         if (!text) continue;
-        const id = urn ?? `linkedin-${Date.now()}-${i}`;
+        // Prefer LinkedIn's own stable URN. When it's missing, derive the id
+        // deterministically from the post text so the SAME post yields the SAME
+        // id on every run. A run-varying id (Date.now(), array index) would
+        // defeat the (source, source_post_id) unique index and re-insert the
+        // post every week, inflating ask_count and corrupting demand signal.
+        const id = urn ?? `linkedin-sha-${createHash("sha256").update(text).digest("hex").slice(0, 16)}`;
         out.push({
           source: "linkedin",
           sourcePostId: id,
@@ -1239,7 +1262,7 @@ export const linkedinAdapter: SourceAdapter = {
 };
 ```
 
-- [ ] **Step 6: Run — verify passes.** `pnpm --filter @workspace/pipeline test degradable` → PASS (3 tests).
+- [ ] **Step 6: Run — verify passes.** `pnpm --filter @workspace/pipeline test degradable` → PASS (4 tests).
 
 - [ ] **Step 7: Commit**
 ```bash
@@ -1252,31 +1275,52 @@ git commit -m "feat(pipeline): add degradable X and LinkedIn Playwright adapters
 ## Task 7: Normalize + dedupe stage (raw_posts upsert)
 
 **Files:**
-- Create: `packages/pipeline/src/stages/normalize.ts`
-- Test: `packages/pipeline/test/normalize.test.ts`
+- Create: `packages/pipeline/src/stages/dedupe.ts` (pure — NO `@workspace/db` import)
+- Create: `packages/pipeline/src/stages/normalize.ts` (DB-touching)
+- Test: `packages/pipeline/test/dedupe.test.ts`
 
 **Interfaces:**
 - Consumes: `db`, `rawPosts` from `@workspace/db`; `RawPost` from `../types`.
-- Produces: `export function dedupeInMemory(posts: RawPost[]): RawPost[]` (pure — drops duplicate `(source, sourcePostId)` within a batch, keeping the first); `export async function upsertRawPosts(posts: RawPost[], runId: number): Promise<number[]>` (returns inserted/existing row ids in input order; uses `onConflictDoUpdate` on the `(source, sourcePostId)` unique index).
+- Produces:
+  - `dedupe.ts`: `export function dedupeInMemory(posts: RawPost[]): RawPost[]` (pure — drops duplicate `(source, sourcePostId)` within a batch, **keeping the first occurrence**).
+  - `normalize.ts`: `export async function upsertRawPosts(posts: RawPost[], runId: number): Promise<Map<string, number>>` — returns a map from `` `${source}:${sourcePostId}` `` to DB row id, using `onConflictDoUpdate` on the `(source, sourcePostId)` unique index.
+
+> **Why two files:** `packages/db`'s client throws synchronously at import time when `DATABASE_URL` is unset. If the pure dedupe function shared a module with the DB-touching code, its test could not load without a database URL present — forcing a fake connection string into the test environment, which trades a clear import-time error for a confusing network failure later. Keeping `dedupeInMemory` in a module with no `@workspace/db` import means the pure test never loads a DB client at all. The pipeline's tests must make zero DB/network calls, and that constraint outranks file-count tidiness.
+
+> **Why a keyed Map and not a positional array:** `dedupeInMemory` can drop entries, so the returned list would be SHORTER than the caller's input. Any caller zipping the two by index (`inputs.map((p, i) => [key(p), ids[i]])`) would silently misalign and attach evidence rows to the wrong posts. Returning a Map keyed by the same composite key the dedupe uses makes that class of bug unrepresentable.
 
 - [ ] **Step 1: Write the failing test (pure function only — DB upsert is integration, tested via run)**
 
-`packages/pipeline/test/normalize.test.ts`:
+`packages/pipeline/test/dedupe.test.ts`:
 ```ts
 import { describe, expect, it } from "vitest";
-import { dedupeInMemory } from "../src/stages/normalize";
+import { dedupeInMemory } from "../src/stages/dedupe";
 import type { RawPost } from "../src/types";
 
-function post(source: string, id: string): RawPost {
-  return { source, sourcePostId: id, url: `u/${id}`, content: "", metrics: {} };
+// `marker` distinguishes otherwise-identical duplicates so the test can prove
+// WHICH occurrence survived. Without it, keeping the first and keeping the last
+// are indistinguishable and the test asserts far less than its name claims.
+function post(source: string, id: string, marker = ""): RawPost {
+  return { source, sourcePostId: id, url: `u/${id}`, title: marker, content: "", metrics: {} };
 }
 
 describe("dedupeInMemory", () => {
-  it("removes duplicate (source, id) pairs keeping the first occurrence", () => {
-    const input = [post("reddit", "a"), post("reddit", "a"), post("hackernews", "a")];
+  it("removes duplicate (source, id) pairs keeping the FIRST occurrence", () => {
+    const input = [
+      post("reddit", "a", "first"),
+      post("reddit", "a", "second"),
+      post("hackernews", "a", "other-source"),
+    ];
     const out = dedupeInMemory(input);
     expect(out).toHaveLength(2);
     expect(out.map((p) => `${p.source}:${p.sourcePostId}`)).toEqual(["reddit:a", "hackernews:a"]);
+    // The surviving reddit:a must be the first one, not the second.
+    expect(out[0]!.title).toBe("first");
+  });
+
+  it("treats the same id from different sources as distinct", () => {
+    const out = dedupeInMemory([post("reddit", "x"), post("hackernews", "x")]);
+    expect(out).toHaveLength(2);
   });
 
   it("returns an empty array unchanged", () => {
@@ -1285,16 +1329,16 @@ describe("dedupeInMemory", () => {
 });
 ```
 
-- [ ] **Step 2: Run — verify fails.** `pnpm --filter @workspace/pipeline test normalize` → FAIL.
+- [ ] **Step 2: Run — verify fails.** `pnpm --filter @workspace/pipeline test dedupe` → FAIL.
 
 - [ ] **Step 3: Implement**
 
-`packages/pipeline/src/stages/normalize.ts`:
+`packages/pipeline/src/stages/dedupe.ts` — pure, no `@workspace/db` import so its test loads without a database client:
 ```ts
-import { db, rawPosts, type NewRawPost } from "@workspace/db";
-import { inArray, sql } from "drizzle-orm";
 import type { RawPost } from "../types";
 
+// Drops duplicate (source, sourcePostId) pairs within a batch, keeping the
+// FIRST occurrence. Keys must match the raw_posts unique index exactly.
 export function dedupeInMemory(posts: RawPost[]): RawPost[] {
   const seen = new Set<string>();
   const out: RawPost[] = [];
@@ -1306,11 +1350,24 @@ export function dedupeInMemory(posts: RawPost[]): RawPost[] {
   }
   return out;
 }
+```
 
-// Upsert each post; return the DB row id for every input post (in order).
-export async function upsertRawPosts(posts: RawPost[], runId: number): Promise<number[]> {
+`packages/pipeline/src/stages/normalize.ts`:
+```ts
+import { db, rawPosts, type NewRawPost } from "@workspace/db";
+import { inArray, sql } from "drizzle-orm";
+import type { RawPost } from "../types";
+import { dedupeInMemory } from "./dedupe";
+
+// Upsert each post and return a map from `${source}:${sourcePostId}` -> DB row id.
+// Keyed rather than positional on purpose: dedupeInMemory can drop entries, so a
+// positional array would silently misalign with the caller's input list.
+export async function upsertRawPosts(
+  posts: RawPost[],
+  runId: number,
+): Promise<Map<string, number>> {
   const deduped = dedupeInMemory(posts);
-  if (deduped.length === 0) return [];
+  if (deduped.length === 0) return new Map();
   const rows: NewRawPost[] = deduped.map((p) => ({
     source: p.source,
     sourcePostId: p.sourcePostId,
@@ -1331,27 +1388,27 @@ export async function upsertRawPosts(posts: RawPost[], runId: number): Promise<n
       // row refreshes with ITS OWN metrics. Never reference a single row here.
       set: { metrics: sql`excluded.metrics`, fetchedAt: new Date() },
     });
-  // Re-read ids for the batch.
-  const keys = deduped.map((p) => ({ source: p.source, id: p.sourcePostId }));
+  // Re-read ids for the batch. Filtering on sourcePostId alone can over-fetch rows
+  // from other sources that happen to share an id; the composite map key keeps
+  // those distinct, so they're simply never looked up.
   const found = await db
     .select({ id: rawPosts.id, source: rawPosts.source, sourcePostId: rawPosts.sourcePostId })
     .from(rawPosts)
     .where(
       inArray(
         rawPosts.sourcePostId,
-        keys.map((k) => k.id),
+        deduped.map((p) => p.sourcePostId),
       ),
     );
-  const byKey = new Map(found.map((r) => [`${r.source}:${r.sourcePostId}`, r.id]));
-  return deduped.map((p) => byKey.get(`${p.source}:${p.sourcePostId}`)!).filter((x) => x != null);
+  return new Map(found.map((r) => [`${r.source}:${r.sourcePostId}`, r.id]));
 }
 ```
 
-- [ ] **Step 4: Run — verify passes.** `pnpm --filter @workspace/pipeline test normalize` → PASS (2 tests). Then `pnpm --filter @workspace/pipeline typecheck` → passes.
+- [ ] **Step 4: Run — verify passes.** `pnpm --filter @workspace/pipeline test dedupe` → PASS (3 tests). Then `pnpm --filter @workspace/pipeline typecheck` → passes. The dedupe test must pass with NO `DATABASE_URL` set — if it needs one, the module split is wrong.
 
 - [ ] **Step 5: Commit**
 ```bash
-git add packages/pipeline/src/stages/normalize.ts packages/pipeline/test/normalize.test.ts
+git add packages/pipeline/src/stages/dedupe.ts packages/pipeline/src/stages/normalize.ts packages/pipeline/test/dedupe.test.ts
 git commit -m "feat(pipeline): add normalize + dedupe stage"
 ```
 
@@ -1394,6 +1451,36 @@ describe("keywordPrefilter", () => {
 
   it("is case-insensitive", () => {
     expect(keywordPrefilter([post("I WISH THERE WAS a way to do X")])).toHaveLength(1);
+  });
+
+  // Every signal pattern needs at least one example. Without this, a typo in a
+  // regex silently creates a permanent blind spot: the paid classifier never
+  // sees those posts, and nothing fails.
+  it.each([
+    ["wish", "I wish there was a tool for this"],
+    ["wish-somebody", "I wish somebody would build this"],
+    ["is-there", "Is there a platform that handles this?"],
+    ["does-anyone-know", "Does anyone know of an alternative?"],
+    ["looking-for", "Looking for a tool that syncs these"],
+    ["i-need", "I need an app that tracks this"],
+    ["would-pay", "I would pay for this"],
+    ["contracted-pay", "I'd pay for a tool that fixes this"],
+    ["happily-pay", "Would happily pay someone to solve this"],
+    ["no-good-tool", "There's no good tool for reconciling these"],
+    ["somebody-should", "Somebody should build a service for this"],
+    ["any-recommendations", "Any recommendations? Need something for invoicing"],
+    ["recommendations-for", "Recommendations for a tool that does exports?"],
+  ])("matches the %s phrasing", (_label, text) => {
+    expect(keywordPrefilter([post(text)])).toHaveLength(1);
+  });
+
+  it("rejects ordinary chatter that mentions no unmet need", () => {
+    const kept = keywordPrefilter([
+      post("Just shipped v2 of my app, feedback welcome"),
+      post("Great tool, been using it for years"),
+      post("Here's how I built my SaaS in a weekend"),
+    ]);
+    expect(kept).toEqual([]);
   });
 });
 ```
@@ -1470,13 +1557,27 @@ export class HaikuClient {
 import type { RawPost } from "../types";
 import type { HaikuClient } from "../anthropic";
 
+// This prefilter is the ONLY gate before the paid classifier. A phrasing that
+// matches nothing here is never evaluated at all, so gaps here are permanent
+// blind spots in the product's demand detection — worse than a few extra
+// Haiku calls, which the spend cap already bounds.
 const SIGNAL_PATTERNS: RegExp[] = [
-  /\bi wish (there was|there were|i had|someone would)\b/i,
-  /\bis there (a|an|any) (tool|app|service|software|way)\b/i,
-  /\blooking for (a|an|some) (tool|app|service|software)\b/i,
-  /\bdoes (anyone|anything) (know|exist)\b.*\b(tool|app|automat)/i,
-  /\bwould (pay|happily pay|love)\b.*\b(tool|app|solve|fix)/i,
-  /\bany recommendations? for\b.*\b(tool|app|software)/i,
+  // Explicit wishes
+  /\bi wish (there was|there were|i had|someone would|somebody would)\b/i,
+  // Existence questions
+  /\bis there (a|an|any) (tool|app|service|software|platform|way)\b/i,
+  /\bdoes (anyone|anybody) know of (a|an|any)\b/i,
+  // Active search
+  /\blooking for (a|an|some)\b.*\b(tool|app|service|software|platform)\b/i,
+  /\bi need (a|an|some)\b.*\b(tool|app|service|software|platform)\b/i,
+  // Willingness to pay — the strongest signal. Covers contractions.
+  /\b(would pay|i'd pay|i would pay|happily pay|pay good money)\b/i,
+  // Gap statements
+  /\bthere(?:'s| is| are)? no (good |decent |real )?(tool|app|service|software)\b/i,
+  /\b(somebody|someone) should (build|make|create)\b/i,
+  // Recommendation requests, word-order tolerant
+  /\bany (tool|app|software|service)? ?recommendations?\b/i,
+  /\brecommendations? for\b.*\b(tool|app|service|software)\b/i,
 ];
 
 export function keywordPrefilter(posts: RawPost[]): RawPost[] {
@@ -1509,14 +1610,17 @@ git commit -m "feat(pipeline): add Haiku client and relevance filter stage"
 ## Task 9: Cluster stage (pg_trgm match into existing ideas)
 
 **Files:**
-- Create: `packages/pipeline/src/stages/cluster.ts`
-- Test: `packages/pipeline/test/cluster.test.ts`
+- Create: `packages/pipeline/src/stages/themes.ts` (pure — NO `@workspace/db` import)
+- Create: `packages/pipeline/src/stages/cluster.ts` (DB + Haiku orchestration)
+- Test: `packages/pipeline/test/cluster.test.ts` (imports the pure fns from `./themes`)
+
+> Same split rationale as Task 7: `packages/db`'s client throws at import time without `DATABASE_URL`, so pure functions sharing a module with DB code can't be tested without a fake connection string. `cluster.ts` re-exports `slugify`/`parseThemes` so downstream imports from `./cluster` keep working.
 
 **Interfaces:**
 - Consumes: `db`, `ideas` from `@workspace/db`; `HaikuClient`; `RawPost`.
 - Produces:
-  - `export function slugify(title: string): string` (pure).
-  - `export function parseThemes(text: string): { title: string; postKeys: string[] }[]` (pure — parses Haiku's JSON theme grouping).
+  - `themes.ts`: `export function slugify(title: string): string` (pure).
+  - `themes.ts`: `export function parseThemes(text: string): { title: string; postKeys: string[] }[]` (pure — parses Haiku's JSON theme grouping).
   - `export async function clusterPosts(posts: RawPost[], client: HaikuClient): Promise<{ themeTitle: string; posts: RawPost[]; matchedIdeaId: number | null }[]>` — groups posts into themes via Haiku, then for each theme queries `ideas` with `similarity(keywords, $theme) > 0.3` (pg_trgm) to find an existing idea to append evidence to.
 
 - [ ] **Step 1: Write the failing test for pure helpers**
@@ -1524,7 +1628,7 @@ git commit -m "feat(pipeline): add Haiku client and relevance filter stage"
 `packages/pipeline/test/cluster.test.ts`:
 ```ts
 import { describe, expect, it } from "vitest";
-import { slugify, parseThemes } from "../src/stages/cluster";
+import { slugify, parseThemes } from "../src/stages/themes";
 
 describe("slugify", () => {
   it("lowercases, strips punctuation, and hyphenates", () => {
@@ -1532,6 +1636,13 @@ describe("slugify", () => {
   });
   it("collapses whitespace and trims hyphens", () => {
     expect(slugify("  Two   Words  ")).toBe("two-words");
+  });
+
+  // ideas.slug is UNIQUE — an empty slug would collide on the second such title.
+  it("never returns an empty slug", () => {
+    expect(slugify("???")).toBe("idea");
+    expect(slugify("")).toBe("idea");
+    expect(slugify("   ")).toBe("idea");
   });
 });
 
@@ -1545,6 +1656,24 @@ describe("parseThemes", () => {
   });
   it("returns [] when no JSON array is present", () => {
     expect(parseThemes("no themes found")).toEqual([]);
+  });
+
+  // parseThemes consumes untrusted model output. The defensive branches below
+  // all exist in the implementation; these tests are what stop them silently
+  // rotting into no-ops.
+  it("returns [] when the bracketed text is not valid JSON", () => {
+    expect(parseThemes('Here you go: [{"title": "x",}]')).toEqual([]);
+  });
+
+  it("drops entries missing title or postKeys", () => {
+    const out = parseThemes(
+      '[{"title":"ok","postKeys":["reddit:a"]},{"title":"no-keys"},{"postKeys":["reddit:b"]}]',
+    );
+    expect(out).toEqual([{ title: "ok", postKeys: ["reddit:a"] }]);
+  });
+
+  it("drops entries whose title is not a string", () => {
+    expect(parseThemes('[{"title":123,"postKeys":["reddit:a"]}]')).toEqual([]);
   });
 });
 ```
@@ -1561,13 +1690,17 @@ import type { RawPost } from "../types";
 import type { HaikuClient } from "../anthropic";
 
 export function slugify(title: string): string {
-  return title
+  const slug = title
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, "")
     .trim()
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
+  // A punctuation-only title ("???", "!!!") reduces to "". `ideas.slug` is
+  // UNIQUE, so an empty slug collides the moment a second such title appears.
+  // Never hand back an empty slug — callers shouldn't have to know this.
+  return slug || "idea";
 }
 
 export function parseThemes(text: string): { title: string; postKeys: string[] }[] {
@@ -1587,7 +1720,7 @@ export function parseThemes(text: string): { title: string; postKeys: string[] }
 async function findSimilarIdea(themeTitle: string): Promise<number | null> {
   // pg_trgm similarity on the keywords column; threshold 0.3.
   const rows = await db
-    .select({ id: ideas.id, sim: sql<number>`similarity(${ideas.keywords}, ${themeTitle})` })
+    .select({ id: ideas.id })
     .from(ideas)
     .where(sql`similarity(${ideas.keywords}, ${themeTitle}) > 0.3`)
     .orderBy(sql`similarity(${ideas.keywords}, ${themeTitle}) DESC`)
@@ -1632,8 +1765,11 @@ git commit -m "feat(pipeline): add clustering stage with pg_trgm idea matching"
 ## Task 10: Enrich stage + orchestrator + report + GitHub Actions
 
 **Files:**
-- Create: `packages/pipeline/src/stages/enrich.ts`
+- Create: `packages/pipeline/src/stages/idea.ts` (pure `parseEnrichedIdea` — NO `@workspace/db` import)
+- Create: `packages/pipeline/src/stages/enrich.ts` (DB-touching; re-exports `parseEnrichedIdea` from `./idea`)
 - Create: `packages/pipeline/src/report.ts`
+
+> Third instance of the same split (see Tasks 7 and 9): `packages/db`'s client throws at import time without `DATABASE_URL`, so pure tested functions must not share a module with DB-touching code. `test/enrich.test.ts` imports `parseEnrichedIdea` from `./idea`.
 - Create: `packages/pipeline/src/run.ts`
 - Create: `packages/pipeline/src/cli.ts`
 - Create: `packages/pipeline/.env.example`
@@ -1643,11 +1779,44 @@ git commit -m "feat(pipeline): add clustering stage with pg_trgm idea matching"
 **Interfaces:**
 - Consumes: everything above.
 - Produces:
-  - `enrich.ts`: `export function parseEnrichedIdea(text: string): EnrichedIdea | null` (pure — parses Haiku JSON), `export async function enrichTheme(themeTitle: string, posts: RawPost[], client: HaikuClient): Promise<EnrichedIdea | null>`, `export async function persistIdea(idea: EnrichedIdea, posts: RawPost[], postIds: number[], matchedIdeaId: number | null): Promise<void>`.
+  - `idea.ts`: `export function parseEnrichedIdea(text: string): EnrichedIdea | null` (pure — parses Haiku JSON), re-exported by `enrich.ts`. `enrich.ts`: `export async function enrichTheme(themeTitle: string, posts: RawPost[], client: HaikuClient): Promise<EnrichedIdea | null>`, `export async function persistIdea(idea: EnrichedIdea, posts: RawPost[], postIds: number[], matchedIdeaId: number | null): Promise<void>`.
   - `report.ts`: `class PipelineRunReport { addSource(name, fetched, failed?, error?); toStats(): Record<string, unknown>; get status(): "success"|"partial"|"failed"; writeGithubSummary(): void }`.
   - `run.ts`: `export async function runPipeline(): Promise<PipelineRunReport>`.
 
-- [ ] **Step 1: Read the modified-Next.js note is not needed here (pipeline is plain Node). Proceed.**
+- [ ] **Step 1: Harden the spend-cap parsing (test first)**
+
+`config.ts` currently reads the cap with a bare `Number(...)`, which yields `NaN` for a malformed value. Every paid stage is gated on `spent < cap`, and all such comparisons are false against `NaN` — so a typo'd cap makes the run skip all paid work and publish zero ideas while still reporting success. It fails closed rather than overspending, but silently.
+
+Add to `packages/pipeline/test/config.test.ts`:
+```ts
+import { parseUsdCap } from "../src/config";
+
+describe("parseUsdCap", () => {
+  it("defaults to 5 when unset or blank", () => {
+    expect(parseUsdCap(undefined)).toBe(5);
+    expect(parseUsdCap("")).toBe(5);
+  });
+
+  it("parses a valid positive number", () => {
+    expect(parseUsdCap("12.5")).toBe(12.5);
+  });
+
+  // A NaN cap would make every `spent < cap` guard false, silently disabling
+  // all paid stages instead of capping them.
+  it("throws on a non-numeric value rather than yielding NaN", () => {
+    expect(() => parseUsdCap("five")).toThrow(/positive number/);
+  });
+
+  it("throws on zero or negative", () => {
+    expect(() => parseUsdCap("0")).toThrow(/positive number/);
+    expect(() => parseUsdCap("-3")).toThrow(/positive number/);
+  });
+});
+```
+
+Run it (RED), then add `parseUsdCap` to `config.ts` exactly as shown in the Task 2 section above and switch `loadEnv` to use it. Run again (GREEN).
+
+- [ ] **Step 1b: The pipeline is plain Node — no modified-Next.js docs needed here. Proceed.**
 
 - [ ] **Step 2: Write the failing enrich test**
 
@@ -1918,7 +2087,7 @@ async function linkEvidence(ideaId: number, postIds: number[]): Promise<void> {
 ```ts
 import { db, pipelineRuns } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { loadEnv } from "./config";
+import { enabledAdapters, loadEnv } from "./config";
 import type { RawPost, SourceAdapter } from "./types";
 import { redditAdapter } from "./adapters/reddit";
 import { hackerNewsAdapter } from "./adapters/hackernews";
@@ -1954,7 +2123,7 @@ export async function runPipeline(): Promise<PipelineRunReport> {
 
   // 1. Fetch — each adapter isolated. A failure is recorded and skipped.
   const collected: RawPost[] = [];
-  for (const adapter of ADAPTERS.filter((a) => a.enabled(env))) {
+  for (const adapter of enabledAdapters(ADAPTERS, env)) {
     try {
       const posts = await adapter.fetchPosts(since, env);
       report.addSource(adapter.name, posts.length);
@@ -1965,8 +2134,10 @@ export async function runPipeline(): Promise<PipelineRunReport> {
   }
 
   // 2. Normalize + dedupe + persist raw posts.
-  const postIds = await upsertRawPosts(collected, runId);
-  const idByKey = new Map(collected.map((p, i) => [`${p.source}:${p.sourcePostId}`, postIds[i]]));
+  // upsertRawPosts returns a Map keyed by `${source}:${sourcePostId}` — do NOT
+  // rebuild this by zipping `collected` against a positional array, since dedupe
+  // can drop entries and the indices would misalign.
+  const idByKey = await upsertRawPosts(collected, runId);
 
   // 3. Relevance filter (cost-gated).
   const client = new HaikuClient(env.anthropicApiKey);
@@ -2118,8 +2289,12 @@ git commit -m "feat(pipeline): add enrich stage, orchestrator, run report, and w
 
 **Files:**
 - Modify: `apps/web/package.json` (add deps)
+- Modify: `apps/web/next.config.ts` (add `@workspace/db` to `transpilePackages`)
 - Create: `apps/web/lib/db.ts`
-- Create: `packages/db/src/queries.ts`, and re-export from `packages/db/src/index.ts`
+- Create: `packages/db/src/ordering.ts` (pure `orderIdeasForListing` — must NOT import `./client`)
+- Create: `packages/db/src/queries.ts` (DB-touching; imports + re-exports the pure fn), and re-export from `packages/db/src/index.ts`
+
+> Fourth instance of the pure/DB split (Tasks 7, 9, 10). The test may use `import type { Idea } from "./index"` — type-only imports are erased at runtime, so they do not pull in the throwing client.
 - Test: `packages/db/test/queries.test.ts` + `packages/db/vitest.config.ts` + add `vitest` devDep and `test` script to `packages/db/package.json`
 
 **Interfaces:**
@@ -2139,7 +2314,22 @@ Edit `apps/web/package.json` `dependencies` — add:
 ```
 (Better Auth + Resend are installed now but used in Task 12.)
 
-- [ ] **Step 2: Create the web db re-export**
+- [ ] **Step 2: Add `@workspace/db` to transpilePackages**
+
+`packages/db` ships raw TypeScript (`exports: { ".": "./src/index.ts" }`) with no build step, so Next.js must be told to transpile it exactly as it already is for `@workspace/ui`. Without this the web app fails to compile every `@workspace/db` import.
+
+`apps/web/next.config.ts`:
+```ts
+import type { NextConfig } from "next"
+
+const nextConfig: NextConfig = {
+  transpilePackages: ["@workspace/ui", "@workspace/db"],
+}
+
+export default nextConfig
+```
+
+- [ ] **Step 3: Create the web db re-export**
 
 `apps/web/lib/db.ts`:
 ```ts
@@ -2181,6 +2371,38 @@ describe("orderIdeasForListing", () => {
       idea({ id: 3, isFree: false, demandScore: 95 }),
     ]);
     expect(out.map((i) => i.id)).toEqual([2, 3, 1]);
+  });
+
+  // The contract has THREE rules. Testing only the first two leaves the
+  // tiebreak free to regress (flipped operands, bad null fallback) unnoticed.
+  it("breaks demandScore ties by most recently published first", () => {
+    const out = orderIdeasForListing([
+      idea({ id: 1, demandScore: 50, publishedAt: new Date("2026-01-01") }),
+      idea({ id: 2, demandScore: 50, publishedAt: new Date("2026-06-01") }),
+      idea({ id: 3, demandScore: 50, publishedAt: new Date("2026-03-01") }),
+    ]);
+    expect(out.map((i) => i.id)).toEqual([2, 3, 1]);
+  });
+
+  it("ranks a null publishedAt last among equal scores", () => {
+    const out = orderIdeasForListing([
+      idea({ id: 1, demandScore: 50, publishedAt: null }),
+      idea({ id: 2, demandScore: 50, publishedAt: new Date("2026-01-01") }),
+    ]);
+    expect(out.map((i) => i.id)).toEqual([2, 1]);
+  });
+
+  it("does not mutate its input", () => {
+    const input = [
+      idea({ id: 1, isFree: false, demandScore: 10 }),
+      idea({ id: 2, isFree: true, demandScore: 5 }),
+    ];
+    orderIdeasForListing(input);
+    expect(input.map((i) => i.id)).toEqual([1, 2]);
+  });
+
+  it("returns an empty array unchanged", () => {
+    expect(orderIdeasForListing([])).toEqual([]);
   });
 });
 ```
@@ -2284,8 +2506,6 @@ import { magicLink } from "better-auth/plugins";
 import { db, schema } from "@workspace/db";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg", schema }),
   baseURL: process.env.BETTER_AUTH_URL,
@@ -2299,6 +2519,12 @@ export const auth = betterAuth({
   plugins: [
     magicLink({
       sendMagicLink: async ({ email, url }) => {
+        // Constructed lazily, NOT at module scope. `new Resend()` throws
+        // synchronously when RESEND_API_KEY is unset, and at module scope that
+        // throw fires during `next build`'s page-data collection — failing the
+        // ENTIRE app build, not just auth, on any deploy that hasn't set the
+        // key yet. Inside the callback it can only fail when a mail is sent.
+        const resend = new Resend(process.env.RESEND_API_KEY);
         await resend.emails.send({
           from: process.env.EMAIL_FROM ?? "login@yourdomain.com",
           to: email,
@@ -2388,7 +2614,17 @@ git commit -m "feat(web): add Better Auth with Google OAuth and Resend magic lin
   - `abacatepay.ts`: `export class AbacatePayProvider implements PaymentProvider` + `export function verifyHmac(rawBody: string, signature: string | null, secret: string): boolean` (pure), `export function parseAbacateEvent(body: unknown): PaymentEvent | null` (pure).
   - `index.ts`: `export function getPaymentProvider(): PaymentProvider` (returns AbacatePay).
 
-> **AbacatePay v2 facts** (from docs): base `https://api.abacatepay.com/v2`, `Authorization: Bearer <key>`, create checkout `POST /checkouts/create` returning `{ data: { url, id }, success, error }`, webhooks signed via HMAC using the configured `secret`, paid event type contains `checkout.completed`. Response envelope is `{ data, success, error }`. Confirm exact webhook payload/signature header names against current docs when implementing; keep parsing tolerant.
+> ⚠️ **The AbacatePay details written in this task's code blocks below are WRONG.** They were drafted from partially-verified docs and later corrected against AbacatePay's live documentation during implementation (verified twice — by the implementer and independently by review). The shipped code is authoritative; these blocks are kept only as a record. The actual API:
+>
+> | This plan said | AbacatePay actually does |
+> |---|---|
+> | header `x-abacatepay-signature` | `X-Webhook-Signature` |
+> | HMAC digest in hex | **base64** |
+> | HMAC key is a per-merchant secret | **a fixed PUBLIC constant shared by all merchants** |
+> | charge id at `data.id` | nested under `data.checkout.id` / `data.transparent.id` |
+> | inline `products:[{name,price}]` | `items:[{id,quantity}]` referencing a pre-created Product |
+>
+> **The security consequence is the important part:** because the HMAC key is public, HMAC verification is NOT an authentication boundary — anyone reading the docs could forge a valid signature. The real per-account gate is a `?webhookSecret=` query parameter on the registered webhook URL, which this plan omitted entirely. Had the header guess been right, this design would have let anyone grant themselves lifetime access for free; as written it would instead have rejected every genuine webhook. Both failures are silent.
 
 - [ ] **Step 1: Add vitest to apps/web**
 
@@ -2680,8 +2916,11 @@ git commit -m "feat(web): add PaymentProvider interface, AbacatePay adapter, che
 ## Task 14: Access gating helper + ideas directory page
 
 **Files:**
-- Create: `apps/web/lib/access.ts`
+- Create: `apps/web/lib/access.ts` (pure `computeAccess` — NO `@workspace/db` import)
+- Create: `apps/web/lib/viewer-access.ts` (DB-backed `getViewerAccess`)
 - Test: `apps/web/lib/access.test.ts`
+
+> Sixth instance of the pure/DB split (Tasks 7, 9, 10, 11, and here). The db client throws at import without `DATABASE_URL`, so the pure tested function must live in its own module.
 - Create: `apps/web/components/idea-card.tsx`, `apps/web/components/locked-teaser.tsx`, `apps/web/components/paywall-cta.tsx`
 - Create: `apps/web/app/ideas/page.tsx`
 
@@ -2764,13 +3003,38 @@ export function IdeaCard({ idea }: { idea: Idea }) {
 }
 ```
 
+`apps/web/lib/teaser.ts` — the narrowing seam for every locked-idea render path:
+```ts
+import type { Idea } from "@workspace/db";
+
+// A branded type that ONLY `toTeaserIdea` can produce.
+//
+// Why not just `Pick<Idea, "title" | "niche">`: TypeScript's excess-property
+// check fires only on object LITERALS. A plain Pick would still accept
+// `<LockedTeaser idea={idea} />` passing a full Idea, because Idea is
+// structurally assignable to a subset of itself — no compile error, and every
+// locked field silently crosses the wire again. The brand makes a full Idea
+// structurally incompatible, so the leak becomes unrepresentable rather than
+// merely absent today.
+declare const teaserBrand: unique symbol;
+
+export type TeaserIdea = Pick<Idea, "title" | "niche"> & {
+  readonly [teaserBrand]: true;
+};
+
+export function toTeaserIdea(idea: Pick<Idea, "title" | "niche">): TeaserIdea {
+  return { title: idea.title, niche: idea.niche } as TeaserIdea;
+}
+```
+
 `apps/web/components/locked-teaser.tsx`:
 ```tsx
-import type { Idea } from "@workspace/db";
+import type { TeaserIdea } from "@/lib/teaser";
 
 // Locked teaser: ONLY non-sensitive fields (title, niche) are rendered.
 // demandScore / MRR / description are never sent to the client for locked ideas.
-export function LockedTeaser({ idea }: { idea: Pick<Idea, "title" | "niche"> }) {
+// The TeaserIdea brand forces every caller through toTeaserIdea().
+export function LockedTeaser({ idea }: { idea: TeaserIdea }) {
   return (
     <div className="relative rounded-lg border p-4">
       <div className="mb-1 text-xs uppercase text-muted-foreground">{idea.niche}</div>
@@ -2852,8 +3116,10 @@ export default async function IdeasPage() {
           access.hasFullAccess || idea.isFree ? (
             <IdeaCard key={idea.id} idea={idea} />
           ) : (
-            // Only title + niche cross the wire for locked ideas.
-            <LockedTeaser key={idea.id} idea={{ title: idea.title, niche: idea.niche }} />
+            // Only title + niche cross the wire for locked ideas. toTeaserIdea
+            // is the ONLY way to produce a TeaserIdea, so a future edit cannot
+            // widen this back to the full object without a compile error.
+            <LockedTeaser key={idea.id} idea={toTeaserIdea(idea)} />
           ),
         )}
       </div>
@@ -2893,7 +3159,8 @@ Confirm the params shape (`params` may be a Promise in this Next.js version) and
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getPublishedIdeaBySlug, getEvidenceForIdea } from "@workspace/db";
-import { getViewerAccess } from "@/lib/access";
+import { getViewerAccess } from "@/lib/viewer-access";
+import { toTeaserIdea } from "@/lib/teaser";
 import { PaywallCta } from "@/components/paywall-cta";
 
 export default async function IdeaDetailPage({
@@ -3008,8 +3275,11 @@ git commit -m "feat(web): add server-gated idea detail page"
 ## Task 16: Admin page (draft review + publish)
 
 **Files:**
-- Create: `apps/web/lib/admin.ts`
+- Create: `apps/web/lib/admin.ts` (pure `isAdmin` — no `@/lib/auth` or DB import)
+- Create: `apps/web/lib/require-admin.ts` (session-backed `requireAdmin`)
 - Test: `apps/web/lib/admin.test.ts`
+
+> Seventh pure/DB split. `@/lib/auth` transitively imports `@workspace/db`, whose client throws at import without `DATABASE_URL`, so the pure tested function needs its own module.
 - Create: `apps/web/app/admin/actions.ts`, `apps/web/app/admin/page.tsx`
 
 **Interfaces:**
@@ -3037,6 +3307,16 @@ describe("isAdmin", () => {
   });
   it("tolerates spaces around ids", () => {
     expect(isAdmin("u2", "u1, u2 , u3")).toBe(true);
+  });
+
+  // THE case that actually exercises both guards together. Neither the null-id
+  // test nor the empty-allowlist test above can catch a removed guard on its
+  // own: ["u1"].includes(null) and [""].includes("u1") are both false anyway.
+  // But with BOTH guards gone, "" splits to [""] and [""].includes("") is TRUE —
+  // an unconfigured deploy would grant admin to an empty user id. This is the
+  // only assertion here that fails if either guard is deleted.
+  it("denies an empty user id against an empty allowlist", () => {
+    expect(isAdmin("", "")).toBe(false);
   });
 });
 ```
@@ -3079,11 +3359,22 @@ export async function requireAdmin(): Promise<string> {
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db, ideas } from "@workspace/db";
-import { requireAdmin } from "@/lib/admin";
+import { requireAdmin } from "@/lib/require-admin";
+
+// `Number(formData.get("id"))` yields 0 for a missing field and NaN for a
+// malformed one, both of which flow straight into `eq(ideas.id, ...)` — a
+// silent no-op or a driver-level error rather than a clear failure.
+function parseIdeaId(formData: FormData): number {
+  const id = Number(formData.get("id"));
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error("invalid idea id");
+  }
+  return id;
+}
 
 export async function publishIdea(formData: FormData) {
   await requireAdmin();
-  const id = Number(formData.get("id"));
+  const id = parseIdeaId(formData);
   await db
     .update(ideas)
     .set({ status: "published", publishedAt: new Date() })
@@ -3094,7 +3385,7 @@ export async function publishIdea(formData: FormData) {
 
 export async function unpublishIdea(formData: FormData) {
   await requireAdmin();
-  const id = Number(formData.get("id"));
+  const id = parseIdeaId(formData);
   await db.update(ideas).set({ status: "draft" }).where(eq(ideas.id, id));
   revalidatePath("/admin");
   revalidatePath("/ideas");
@@ -3102,7 +3393,7 @@ export async function unpublishIdea(formData: FormData) {
 
 export async function setFreeIdea(formData: FormData) {
   await requireAdmin();
-  const id = Number(formData.get("id"));
+  const id = parseIdeaId(formData);
   const isFree = formData.get("isFree") === "true";
   await db.update(ideas).set({ isFree }).where(eq(ideas.id, id));
   revalidatePath("/admin");

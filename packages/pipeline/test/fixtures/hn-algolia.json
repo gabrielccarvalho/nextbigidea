@@ -1,0 +1,22 @@
+{
+  "hits": [
+    {
+      "objectID": "39000001",
+      "title": "Ask HN: Is there a tool to track competitor pricing automatically?",
+      "story_text": "I check 12 sites by hand weekly. Would happily pay for automation.",
+      "author": "pg_fan",
+      "points": 45,
+      "num_comments": 20,
+      "created_at_i": 1752900500
+    },
+    {
+      "objectID": "39000002",
+      "title": "Show HN: My new note app",
+      "story_text": null,
+      "author": "noteguy",
+      "points": 2,
+      "num_comments": 0,
+      "created_at_i": 1752800500
+    }
+  ]
+}

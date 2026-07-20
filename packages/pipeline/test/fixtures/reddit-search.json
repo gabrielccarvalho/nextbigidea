@@ -1,0 +1,30 @@
+{
+  "data": {
+    "children": [
+      {
+        "data": {
+          "id": "abc123",
+          "title": "I wish there was a tool that auto-generates invoices from Stripe",
+          "selftext": "Spending hours every month on this. Would pay for a fix.",
+          "permalink": "/r/SaaS/comments/abc123/i_wish/",
+          "author": "founder42",
+          "created_utc": 1752900000,
+          "ups": 87,
+          "num_comments": 34
+        }
+      },
+      {
+        "data": {
+          "id": "def456",
+          "title": "Just shipped my weekend project",
+          "selftext": "Check it out",
+          "permalink": "/r/SaaS/comments/def456/just_shipped/",
+          "author": "builder",
+          "created_utc": 1752800000,
+          "ups": 3,
+          "num_comments": 1
+        }
+      }
+    ]
+  }
+}

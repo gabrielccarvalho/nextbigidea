@@ -1,0 +1,20 @@
+{
+  "data": {
+    "posts": {
+      "edges": [
+        {
+          "node": {
+            "id": "700001",
+            "name": "InvoiceAuto",
+            "tagline": "Auto-generate invoices from your payment provider",
+            "url": "https://www.producthunt.com/posts/invoiceauto",
+            "votesCount": 320,
+            "commentsCount": 45,
+            "createdAt": "2026-07-18T09:00:00Z",
+            "user": { "username": "makerjane" }
+          }
+        }
+      ]
+    }
+  }
+}
