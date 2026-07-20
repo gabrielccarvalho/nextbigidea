@@ -3,13 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { cn } from "@workspace/ui/lib/utils";
-import { COMPANY } from "@/lib/content";
-
-const NAV = [
-  { label: "How it works", href: "/#how-it-works" },
-  { label: "Pricing", href: "/#pricing" },
-  { label: "FAQ", href: "/#faq" },
-];
+import { COMPANY, NAV } from "@/lib/content";
 
 export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
@@ -33,7 +27,7 @@ export function SiteHeader() {
           {COMPANY.name}
         </Link>
         <nav className="ml-auto hidden items-center gap-6 sm:flex">
-          {NAV.map((item) => (
+          {NAV.links.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -44,10 +38,10 @@ export function SiteHeader() {
           ))}
         </nav>
         <Link
-          href="/ideas"
+          href={NAV.cta.href}
           className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
         >
-          Browse ideas
+          {NAV.cta.label}
         </Link>
       </div>
     </header>

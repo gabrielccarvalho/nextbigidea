@@ -170,6 +170,15 @@ export const FINAL_CTA = {
   href: "/ideas",
 } as const;
 
+export const NAV = {
+  links: [
+    { label: "How it works", href: "/#how-it-works" },
+    { label: "Pricing", href: "/#pricing" },
+    { label: "FAQ", href: "/#faq" },
+  ],
+  cta: { label: "Browse ideas", href: "/ideas" },
+} as const;
+
 export const FOOTER = {
   columns: [
     {
