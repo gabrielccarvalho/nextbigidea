@@ -2283,7 +2283,10 @@ git commit -m "feat(pipeline): add enrich stage, orchestrator, run report, and w
 - Modify: `apps/web/package.json` (add deps)
 - Modify: `apps/web/next.config.ts` (add `@workspace/db` to `transpilePackages`)
 - Create: `apps/web/lib/db.ts`
-- Create: `packages/db/src/queries.ts`, and re-export from `packages/db/src/index.ts`
+- Create: `packages/db/src/ordering.ts` (pure `orderIdeasForListing` — must NOT import `./client`)
+- Create: `packages/db/src/queries.ts` (DB-touching; imports + re-exports the pure fn), and re-export from `packages/db/src/index.ts`
+
+> Fourth instance of the pure/DB split (Tasks 7, 9, 10). The test may use `import type { Idea } from "./index"` — type-only imports are erased at runtime, so they do not pull in the throwing client.
 - Test: `packages/db/test/queries.test.ts` + `packages/db/vitest.config.ts` + add `vitest` devDep and `test` script to `packages/db/package.json`
 
 **Interfaces:**
