@@ -159,7 +159,7 @@ export const SPECIMEN = {
 
 // The four passages that scroll past the pinned specimen. `key` maps to the
 // region of the card that highlights while the passage is active — the values
-// must stay in sync with SPECIMEN_REGIONS in components/specimen-card.tsx.
+// must stay in sync with the SpecimenRegion type in components/specimen-card.tsx.
 export const DISSECTION = {
   steps: [
     {
@@ -219,7 +219,10 @@ git commit -m "feat(web): add specimen content, drop standalone Problem section"
 
 **Interfaces:**
 - Consumes: nothing
-- Produces: `Section` gains an optional `density?: "tight" | "default" | "open"` prop (default `"default"`). New exports `Rail` and `RailStep`. `RailStep` signature: `({ n, title, body, active }: { n: string; title: string; body: string; active?: boolean })` — `active` defaults to `true`, so server components can use it without passing state. Tasks 4 and 6 consume these.
+- Produces: `Section` gains an optional `density?: "tight" | "default" | "open"` prop (default `"default"`). New exports `Rail` and `RailStep`.
+  - `Rail`: `({ className, children }: { className?: string; children: React.ReactNode })`
+  - `RailStep`: `({ n, title, body, active, dataRegion, className, ref }: { n: string; title: string; body: string; active?: boolean; dataRegion?: string; className?: string; ref?: React.Ref<HTMLLIElement> })` — `active` defaults to `true` so server components can use it without passing state.
+  - **`RailStep` is the single rail implementation for the whole page.** Task 4 (client, observed) and Task 6 (server, static) both compose it. Do not reimplement its markup anywhere; that is why `ref`, `dataRegion`, and `className` are on the signature.
 
 - [ ] **Step 1: Replace the Section component**
 
@@ -272,22 +275,34 @@ export function Rail({ className, children }: { className?: string; children: Re
   return <ol className={cn("relative border-l border-border pl-8", className)}>{children}</ol>;
 }
 
+// `ref` and `dataRegion` exist so the Dissection (Task 4) can observe these
+// elements without reimplementing the markup. React 19 passes ref as a normal
+// prop — no forwardRef needed.
 export function RailStep({
   n,
   title,
   body,
   active = true,
+  dataRegion,
+  className,
+  ref,
 }: {
   n: string;
   title: string;
   body: string;
   active?: boolean;
+  dataRegion?: string;
+  className?: string;
+  ref?: React.Ref<HTMLLIElement>;
 }) {
   return (
     <li
+      ref={ref}
+      data-region={dataRegion}
       className={cn(
         "relative pb-10 transition-opacity duration-500 last:pb-0",
         active ? "opacity-100" : "opacity-30",
+        className,
       )}
     >
       <span
@@ -330,7 +345,7 @@ git commit -m "feat(web): add section density and rail primitives"
 
 **Interfaces:**
 - Consumes: `SPECIMEN` from Task 1; `Section`, `SectionHeading` from Task 2.
-- Produces: `SpecimenCard` — `({ highlight }: { highlight?: SpecimenRegion })`, plus `export const SPECIMEN_REGIONS = ["score", "numbers", "receipts", "catch"] as const` and `export type SpecimenRegion = (typeof SPECIMEN_REGIONS)[number] | null`. Task 4 renders this with a live `highlight`.
+- Produces: `SpecimenCard` — `({ highlight }: { highlight?: SpecimenRegion })`, and `export type SpecimenRegion = "score" | "numbers" | "receipts" | "catch" | null`. Task 4 renders the card with a live `highlight`. Export the type only — there is no runtime region array, because nothing iterates the regions.
 
 - [ ] **Step 1: Create the card**
 
@@ -340,9 +355,8 @@ Create `apps/web/components/specimen-card.tsx`:
 import { cn } from "@workspace/ui/lib/utils";
 import { SOURCES, SPECIMEN } from "@/lib/content";
 
-// Keys must stay in sync with DISSECTION.steps[].key in lib/content.ts.
-export const SPECIMEN_REGIONS = ["score", "numbers", "receipts", "catch"] as const;
-export type SpecimenRegion = (typeof SPECIMEN_REGIONS)[number] | null;
+// Must stay in sync with DISSECTION.steps[].key in lib/content.ts.
+export type SpecimenRegion = "score" | "numbers" | "receipts" | "catch" | null;
 
 const SOURCE_COLOR = new Map(SOURCES.map((s) => [s.name, s.color]));
 
@@ -498,7 +512,7 @@ git commit -m "feat(web): add specimen card and section"
 - Delete: `apps/web/components/sections/anatomy.tsx`
 
 **Interfaces:**
-- Consumes: `DISSECTION` (Task 1), `SpecimenCard` / `SpecimenRegion` (Task 3), `Section` (Task 2).
+- Consumes: `DISSECTION` (Task 1), `SpecimenCard` / `SpecimenRegion` (Task 3), `Section` / `Rail` / `RailStep` (Task 2). **Compose `RailStep`; do not reimplement rail markup.**
 - Produces: `Dissection` component. Nothing downstream consumes it.
 
 - [ ] **Step 1: Create the dissection section**
@@ -509,8 +523,7 @@ Create `apps/web/components/sections/dissection.tsx`:
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { cn } from "@workspace/ui/lib/utils";
-import { Section } from "@/components/section";
+import { Rail, RailStep, Section } from "@/components/section";
 import { SpecimenCard, type SpecimenRegion } from "@/components/specimen-card";
 import { DISSECTION } from "@/lib/content";
 
@@ -559,36 +572,25 @@ export function Dissection() {
           <SpecimenCard highlight={active} />
         </div>
 
-        <ol className="relative border-l border-border pl-8 lg:pt-16">
+        {/* Composes RailStep — the page has exactly one rail implementation. */}
+        <Rail className="lg:pt-16">
           {DISSECTION.steps.map((step, i) => (
-            <li
+            <RailStep
               key={step.key}
-              data-region={step.key}
               ref={(el) => {
                 stepRefs.current[i] = el;
               }}
-              className={cn(
-                "relative pb-14 transition-opacity duration-500 last:pb-0",
-                // No active region means nothing has been chosen yet (mobile,
-                // reduced motion, pre-scroll) — show everything.
-                active === null || active === step.key ? "opacity-100" : "opacity-30",
-              )}
-            >
-              <span
-                aria-hidden
-                className={cn(
-                  "absolute -left-[33px] top-1.5 size-1.5 rounded-full ring-4 ring-background transition-colors duration-500",
-                  active === step.key ? "bg-chart-1" : "bg-border",
-                )}
-              />
-              <span className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground">
-                {step.n}
-              </span>
-              <h3 className="mt-2 text-lg font-semibold tracking-tight">{step.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
-            </li>
+              dataRegion={step.key}
+              n={step.n}
+              title={step.title}
+              body={step.body}
+              // No active region means nothing has been chosen yet (mobile,
+              // reduced motion, pre-scroll) — show everything.
+              active={active === null || active === step.key}
+              className="pb-14"
+            />
           ))}
-        </ol>
+        </Rail>
       </div>
     </Section>
   );
