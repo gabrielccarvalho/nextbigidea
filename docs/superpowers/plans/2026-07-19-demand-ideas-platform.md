@@ -1757,8 +1757,11 @@ git commit -m "feat(pipeline): add clustering stage with pg_trgm idea matching"
 ## Task 10: Enrich stage + orchestrator + report + GitHub Actions
 
 **Files:**
-- Create: `packages/pipeline/src/stages/enrich.ts`
+- Create: `packages/pipeline/src/stages/idea.ts` (pure `parseEnrichedIdea` — NO `@workspace/db` import)
+- Create: `packages/pipeline/src/stages/enrich.ts` (DB-touching; re-exports `parseEnrichedIdea` from `./idea`)
 - Create: `packages/pipeline/src/report.ts`
+
+> Third instance of the same split (see Tasks 7 and 9): `packages/db`'s client throws at import time without `DATABASE_URL`, so pure tested functions must not share a module with DB-touching code. `test/enrich.test.ts` imports `parseEnrichedIdea` from `./idea`.
 - Create: `packages/pipeline/src/run.ts`
 - Create: `packages/pipeline/src/cli.ts`
 - Create: `packages/pipeline/.env.example`
@@ -1768,7 +1771,7 @@ git commit -m "feat(pipeline): add clustering stage with pg_trgm idea matching"
 **Interfaces:**
 - Consumes: everything above.
 - Produces:
-  - `enrich.ts`: `export function parseEnrichedIdea(text: string): EnrichedIdea | null` (pure — parses Haiku JSON), `export async function enrichTheme(themeTitle: string, posts: RawPost[], client: HaikuClient): Promise<EnrichedIdea | null>`, `export async function persistIdea(idea: EnrichedIdea, posts: RawPost[], postIds: number[], matchedIdeaId: number | null): Promise<void>`.
+  - `idea.ts`: `export function parseEnrichedIdea(text: string): EnrichedIdea | null` (pure — parses Haiku JSON), re-exported by `enrich.ts`. `enrich.ts`: `export async function enrichTheme(themeTitle: string, posts: RawPost[], client: HaikuClient): Promise<EnrichedIdea | null>`, `export async function persistIdea(idea: EnrichedIdea, posts: RawPost[], postIds: number[], matchedIdeaId: number | null): Promise<void>`.
   - `report.ts`: `class PipelineRunReport { addSource(name, fetched, failed?, error?); toStats(): Record<string, unknown>; get status(): "success"|"partial"|"failed"; writeGithubSummary(): void }`.
   - `run.ts`: `export async function runPipeline(): Promise<PipelineRunReport>`.
 
