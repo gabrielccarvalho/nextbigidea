@@ -3,6 +3,7 @@ import { getViewerAccess } from "@/lib/viewer-access";
 import { IdeaCard } from "@/components/idea-card";
 import { LockedTeaser } from "@/components/locked-teaser";
 import { PaywallCta } from "@/components/paywall-cta";
+import { toTeaserIdea } from "@/lib/teaser";
 
 export default async function IdeasPage() {
   const [ideas, access] = await Promise.all([listPublishedIdeas(), getViewerAccess()]);
@@ -26,11 +27,10 @@ export default async function IdeasPage() {
             <IdeaCard key={idea.id} idea={idea} />
           ) : (
             // Only title + niche cross the wire for locked ideas. Do NOT pass
-            // `idea` here — LockedTeaser's prop type only accepts these two
-            // fields, but the shape must be constructed narrowly here too,
-            // since a wider object would still serialize every field even if
-            // the component only renders a subset of them.
-            <LockedTeaser key={idea.id} idea={{ title: idea.title, niche: idea.niche }} />
+            // `idea` here — `toTeaserIdea()` is the only way to produce a
+            // `TeaserIdea`, so a future edit widening this back to `idea={idea}`
+            // is a compile error, not just a code-review catch.
+            <LockedTeaser key={idea.id} idea={toTeaserIdea(idea)} />
           ),
         )}
       </div>
