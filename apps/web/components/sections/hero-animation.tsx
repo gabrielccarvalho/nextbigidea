@@ -55,6 +55,14 @@ export function HeroAnimation() {
       coreRef.current?.getAnimations().forEach((a) => a.cancel());
       ringRef.current?.getAnimations().forEach((a) => a.cancel());
       if (cardRef.current) cardRef.current.style.opacity = "1";
+      // Cancelling animations removes their fill: "forwards" effect, exposing any
+      // stale inline styles that were set during the normal animation cycle. The
+      // core and ring had opacity set to "1" during condensing and form phases
+      // (~t=3400ms and t=4400ms), and without explicitly resetting them here,
+      // cancel() would reveal those hidden elements instead of keeping them hidden.
+      // This reset mirrors what cycle() does at line 156–157.
+      if (coreRef.current) coreRef.current.style.opacity = "0";
+      if (ringRef.current) ringRef.current.style.opacity = "0";
       return;
     }
 
