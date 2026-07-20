@@ -241,10 +241,17 @@ export function HeroAnimation() {
     <div
       ref={stageRef}
       aria-hidden="true"
-      className="relative h-[420px] overflow-hidden rounded-xl border border-border sm:h-[520px] lg:h-[580px]"
+      className="relative h-[420px] overflow-hidden sm:h-[520px] lg:h-[580px]"
       style={{
         background:
           "radial-gradient(circle at 50% 50%, color-mix(in oklch, var(--primary) 12%, var(--background)) 0%, var(--background) 62%)",
+        // Fades the field into the page instead of ending it at a border.
+        maskImage:
+          "linear-gradient(to bottom, transparent, black 12%, black 72%, transparent), linear-gradient(to right, transparent, black 8%, black 92%, transparent)",
+        maskComposite: "intersect",
+        WebkitMaskImage:
+          "linear-gradient(to bottom, transparent, black 12%, black 72%, transparent), linear-gradient(to right, transparent, black 8%, black 92%, transparent)",
+        WebkitMaskComposite: "source-in",
       }}
     >
       <span className="absolute left-1/2 top-4 -translate-x-1/2 font-mono text-[0.55rem] uppercase tracking-[0.22em] text-muted-foreground">

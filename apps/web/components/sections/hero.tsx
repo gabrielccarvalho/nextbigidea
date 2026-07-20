@@ -5,11 +5,8 @@ import { HERO } from "@/lib/content";
 
 export function Hero() {
   return (
-    <section className="pb-16 pt-12 sm:pt-20">
-      {/* The pitch stays in a readable measure; the animation below spans the full
-          width. It was previously a grid column ~500px wide, which clamped the
-          spawn radius to its floor and made nine 176px cards overlap into a clump. */}
-      <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-6 text-center">
+    <section className="relative overflow-hidden pb-8 pt-12 sm:pt-20">
+      <div className="relative mx-auto flex max-w-3xl flex-col items-center gap-6 px-6 text-center">
         <Eyebrow>{HERO.eyebrow}</Eyebrow>
         {/* This h1 must remain the LCP element — never let the animation take it. */}
         <h1 className="text-balance text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
@@ -32,9 +29,19 @@ export function Hero() {
         </div>
       </div>
 
-      <div className="mx-auto mt-14 max-w-7xl px-6">
+      {/* Mobile: the field flows below the pitch, so drifting cards never cross
+          the subhead. lg and up: it goes behind, full-bleed, as the ambient
+          field the pitch sits on. */}
+      <div
+        aria-hidden
+        className="pointer-events-none relative mt-6 lg:absolute lg:inset-x-0 lg:top-32 lg:-z-10 lg:mt-0"
+      >
         <HeroAnimation />
       </div>
+
+      {/* Reserves the field's height at lg only — below that the field is in
+          normal flow and takes its own space. */}
+      <div aria-hidden className="hidden lg:block lg:h-[430px]" />
     </section>
   );
 }
