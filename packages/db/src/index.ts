@@ -1,5 +1,6 @@
 export { db, schema } from "./client";
 export * from "./schema";
+export * from "./queries";
 
 import type {
   ideas,
