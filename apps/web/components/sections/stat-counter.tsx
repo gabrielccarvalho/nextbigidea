@@ -39,8 +39,8 @@ export function StatCounter({ value, label }: { value: number; label: string }) 
   }, [value]);
 
   return (
-    <div ref={ref} className="rounded-xl border border-border bg-card p-6">
-      <div className="font-mono text-3xl font-semibold tracking-tight text-primary tabular-nums">
+    <div ref={ref}>
+      <div className="font-mono text-3xl font-semibold tracking-tight text-chart-1 tabular-nums">
         {display.toLocaleString("en-US")}
       </div>
       <div className="mt-1 font-mono text-[0.6rem] uppercase tracking-[0.16em] text-muted-foreground">

@@ -1,7 +1,6 @@
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { Hero } from "@/components/sections/hero";
-import { ProofBar } from "@/components/sections/proof-bar";
 import { Dissection } from "@/components/sections/dissection";
 import { HowItWorks } from "@/components/sections/how-it-works";
 import { WhyEvidence } from "@/components/sections/why-evidence";
@@ -15,7 +14,6 @@ export default function Home() {
       <SiteHeader />
       <main>
         <Hero />
-        <ProofBar />
         <Dissection />
         <HowItWorks />
         <WhyEvidence />
