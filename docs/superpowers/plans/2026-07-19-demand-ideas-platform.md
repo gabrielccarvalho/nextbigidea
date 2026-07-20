@@ -1252,33 +1252,52 @@ git commit -m "feat(pipeline): add degradable X and LinkedIn Playwright adapters
 ## Task 7: Normalize + dedupe stage (raw_posts upsert)
 
 **Files:**
-- Create: `packages/pipeline/src/stages/normalize.ts`
-- Test: `packages/pipeline/test/normalize.test.ts`
+- Create: `packages/pipeline/src/stages/dedupe.ts` (pure — NO `@workspace/db` import)
+- Create: `packages/pipeline/src/stages/normalize.ts` (DB-touching)
+- Test: `packages/pipeline/test/dedupe.test.ts`
 
 **Interfaces:**
 - Consumes: `db`, `rawPosts` from `@workspace/db`; `RawPost` from `../types`.
-- Produces: `export function dedupeInMemory(posts: RawPost[]): RawPost[]` (pure — drops duplicate `(source, sourcePostId)` within a batch, keeping the first); `export async function upsertRawPosts(posts: RawPost[], runId: number): Promise<Map<string, number>>` — returns a map from `` `${source}:${sourcePostId}` `` to DB row id, using `onConflictDoUpdate` on the `(source, sourcePostId)` unique index.
+- Produces:
+  - `dedupe.ts`: `export function dedupeInMemory(posts: RawPost[]): RawPost[]` (pure — drops duplicate `(source, sourcePostId)` within a batch, **keeping the first occurrence**).
+  - `normalize.ts`: `export async function upsertRawPosts(posts: RawPost[], runId: number): Promise<Map<string, number>>` — returns a map from `` `${source}:${sourcePostId}` `` to DB row id, using `onConflictDoUpdate` on the `(source, sourcePostId)` unique index.
+
+> **Why two files:** `packages/db`'s client throws synchronously at import time when `DATABASE_URL` is unset. If the pure dedupe function shared a module with the DB-touching code, its test could not load without a database URL present — forcing a fake connection string into the test environment, which trades a clear import-time error for a confusing network failure later. Keeping `dedupeInMemory` in a module with no `@workspace/db` import means the pure test never loads a DB client at all. The pipeline's tests must make zero DB/network calls, and that constraint outranks file-count tidiness.
 
 > **Why a keyed Map and not a positional array:** `dedupeInMemory` can drop entries, so the returned list would be SHORTER than the caller's input. Any caller zipping the two by index (`inputs.map((p, i) => [key(p), ids[i]])`) would silently misalign and attach evidence rows to the wrong posts. Returning a Map keyed by the same composite key the dedupe uses makes that class of bug unrepresentable.
 
 - [ ] **Step 1: Write the failing test (pure function only — DB upsert is integration, tested via run)**
 
-`packages/pipeline/test/normalize.test.ts`:
+`packages/pipeline/test/dedupe.test.ts`:
 ```ts
 import { describe, expect, it } from "vitest";
-import { dedupeInMemory } from "../src/stages/normalize";
+import { dedupeInMemory } from "../src/stages/dedupe";
 import type { RawPost } from "../src/types";
 
-function post(source: string, id: string): RawPost {
-  return { source, sourcePostId: id, url: `u/${id}`, content: "", metrics: {} };
+// `marker` distinguishes otherwise-identical duplicates so the test can prove
+// WHICH occurrence survived. Without it, keeping the first and keeping the last
+// are indistinguishable and the test asserts far less than its name claims.
+function post(source: string, id: string, marker = ""): RawPost {
+  return { source, sourcePostId: id, url: `u/${id}`, title: marker, content: "", metrics: {} };
 }
 
 describe("dedupeInMemory", () => {
-  it("removes duplicate (source, id) pairs keeping the first occurrence", () => {
-    const input = [post("reddit", "a"), post("reddit", "a"), post("hackernews", "a")];
+  it("removes duplicate (source, id) pairs keeping the FIRST occurrence", () => {
+    const input = [
+      post("reddit", "a", "first"),
+      post("reddit", "a", "second"),
+      post("hackernews", "a", "other-source"),
+    ];
     const out = dedupeInMemory(input);
     expect(out).toHaveLength(2);
     expect(out.map((p) => `${p.source}:${p.sourcePostId}`)).toEqual(["reddit:a", "hackernews:a"]);
+    // The surviving reddit:a must be the first one, not the second.
+    expect(out[0]!.title).toBe("first");
+  });
+
+  it("treats the same id from different sources as distinct", () => {
+    const out = dedupeInMemory([post("reddit", "x"), post("hackernews", "x")]);
+    expect(out).toHaveLength(2);
   });
 
   it("returns an empty array unchanged", () => {
@@ -1287,16 +1306,16 @@ describe("dedupeInMemory", () => {
 });
 ```
 
-- [ ] **Step 2: Run — verify fails.** `pnpm --filter @workspace/pipeline test normalize` → FAIL.
+- [ ] **Step 2: Run — verify fails.** `pnpm --filter @workspace/pipeline test dedupe` → FAIL.
 
 - [ ] **Step 3: Implement**
 
-`packages/pipeline/src/stages/normalize.ts`:
+`packages/pipeline/src/stages/dedupe.ts` — pure, no `@workspace/db` import so its test loads without a database client:
 ```ts
-import { db, rawPosts, type NewRawPost } from "@workspace/db";
-import { inArray, sql } from "drizzle-orm";
 import type { RawPost } from "../types";
 
+// Drops duplicate (source, sourcePostId) pairs within a batch, keeping the
+// FIRST occurrence. Keys must match the raw_posts unique index exactly.
 export function dedupeInMemory(posts: RawPost[]): RawPost[] {
   const seen = new Set<string>();
   const out: RawPost[] = [];
@@ -1308,6 +1327,14 @@ export function dedupeInMemory(posts: RawPost[]): RawPost[] {
   }
   return out;
 }
+```
+
+`packages/pipeline/src/stages/normalize.ts`:
+```ts
+import { db, rawPosts, type NewRawPost } from "@workspace/db";
+import { inArray, sql } from "drizzle-orm";
+import type { RawPost } from "../types";
+import { dedupeInMemory } from "./dedupe";
 
 // Upsert each post and return a map from `${source}:${sourcePostId}` -> DB row id.
 // Keyed rather than positional on purpose: dedupeInMemory can drop entries, so a
@@ -1354,11 +1381,11 @@ export async function upsertRawPosts(
 }
 ```
 
-- [ ] **Step 4: Run — verify passes.** `pnpm --filter @workspace/pipeline test normalize` → PASS (2 tests). Then `pnpm --filter @workspace/pipeline typecheck` → passes.
+- [ ] **Step 4: Run — verify passes.** `pnpm --filter @workspace/pipeline test dedupe` → PASS (3 tests). Then `pnpm --filter @workspace/pipeline typecheck` → passes. The dedupe test must pass with NO `DATABASE_URL` set — if it needs one, the module split is wrong.
 
 - [ ] **Step 5: Commit**
 ```bash
-git add packages/pipeline/src/stages/normalize.ts packages/pipeline/test/normalize.test.ts
+git add packages/pipeline/src/stages/dedupe.ts packages/pipeline/src/stages/normalize.ts packages/pipeline/test/dedupe.test.ts
 git commit -m "feat(pipeline): add normalize + dedupe stage"
 ```
 
