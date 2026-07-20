@@ -1,18 +1,7 @@
 import { db, rawPosts, type NewRawPost } from "@workspace/db";
 import { inArray, sql } from "drizzle-orm";
 import type { RawPost } from "../types";
-
-export function dedupeInMemory(posts: RawPost[]): RawPost[] {
-  const seen = new Set<string>();
-  const out: RawPost[] = [];
-  for (const p of posts) {
-    const key = `${p.source}:${p.sourcePostId}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(p);
-  }
-  return out;
-}
+import { dedupeInMemory } from "./dedupe";
 
 // Upsert each post and return a map from `${source}:${sourcePostId}` -> DB row id.
 // Keyed rather than positional on purpose: dedupeInMemory can drop entries, so a
