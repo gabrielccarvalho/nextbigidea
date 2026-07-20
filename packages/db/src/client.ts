@@ -8,6 +8,29 @@ import * as schema from "./schema";
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL is not set");
 
+// --- Local development against Postgres-in-Docker ---
+//
+// @neondatabase/serverless never speaks the raw Postgres wire protocol: `neon()` posts SQL to
+// Neon's HTTP endpoint and `Pool` tunnels Postgres over a WebSocket. Neither can reach a stock
+// `postgres:17` container directly, so docker-compose.yml runs the two Neon proxies in front of
+// it and this block re-points the driver at them.
+//
+// Opt-in via NEON_LOCAL_PROXY so production is byte-for-byte unaffected: when the flag is absent
+// (every deployed environment) not a single line here runs. Keeping the real drivers locally —
+// rather than swapping in node-postgres — means local runs exercise the same transaction
+// limitations and connection semantics that production does.
+if (process.env.NEON_LOCAL_PROXY === "true") {
+  const httpHost = process.env.NEON_LOCAL_HTTP_HOST ?? "localhost:4444";
+  const wsHost = process.env.NEON_LOCAL_WS_HOST ?? "localhost:4445";
+  neonConfig.fetchEndpoint = `http://${httpHost}/sql`;
+  neonConfig.wsProxy = () => `${wsHost}/v1`;
+  // The local proxies are plain HTTP/WS on the loopback interface; the TLS handshake and
+  // connection pipelining Neon's hosted endpoint expects would fail against them.
+  neonConfig.useSecureWebSocket = false;
+  neonConfig.pipelineTLS = false;
+  neonConfig.pipelineConnect = false;
+}
+
 const sql = neon(url);
 export const db = drizzle({ client: sql, schema });
 export { schema };
