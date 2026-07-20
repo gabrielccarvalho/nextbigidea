@@ -1,4 +1,4 @@
-export { db, schema } from "./client";
+export { db, schema, getTransactionalDb } from "./client";
 export * from "./schema";
 export * from "./queries";
 
