@@ -133,10 +133,11 @@ export class AbacatePayProvider implements PaymentProvider {
 
   constructor(
     private apiKey = process.env.ABACATEPAY_API_KEY ?? "",
-    // AbacatePay checkouts reference a pre-created Product by id (POST /v2/products/create or
-    // the dashboard) rather than accepting inline product fields at checkout time. The lifetime
-    // -access product (price 11000 BRL cents) must be created once ahead of launch and its
-    // returned `id` set here.
+    // AbacatePay subscriptions reference a pre-created Product by id (POST /v2/products/create
+    // or the dashboard) rather than accepting inline product fields. The annual-access product
+    // must be created once ahead of launch WITH `cycle: "ANNUALLY"` and price 11000 BRL cents,
+    // and its returned `id` set here. A product without a cycle is rejected by
+    // /subscriptions/create.
     private productId = process.env.ABACATEPAY_PRODUCT_ID ?? "",
     private hmacKey = ABACATEPAY_HMAC_PUBLIC_KEY,
     // The actual per-account authentication boundary: the secret configured when the webhook
@@ -153,12 +154,16 @@ export class AbacatePayProvider implements PaymentProvider {
   }): Promise<CheckoutResult> {
     if (!this.productId) {
       throw new Error(
-        "ABACATEPAY_PRODUCT_ID is not configured. Create the lifetime-access product once " +
-          "(AbacatePay dashboard or POST /v2/products/create with price=11000, currency=BRL) " +
-          "and set the returned id as ABACATEPAY_PRODUCT_ID.",
+        "ABACATEPAY_PRODUCT_ID is not configured. Create the annual-access product once " +
+          "(AbacatePay dashboard or POST /v2/products/create with price=11000, currency=BRL, " +
+          'cycle="ANNUALLY") and set the returned id as ABACATEPAY_PRODUCT_ID.',
       );
     }
-    const res = await fetch(`${BASE_URL}/checkouts/create`, {
+    // POST /subscriptions/create, NOT /checkouts/create. Same parameter shape, but it starts a
+    // recurring billing cycle. The referenced product MUST have a `cycle` set — one-off
+    // ("avulso") products are rejected by this endpoint.
+    // Docs: https://docs.abacatepay.com/pages/subscriptions/reference
+    const res = await fetch(`${BASE_URL}/subscriptions/create`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -166,14 +171,21 @@ export class AbacatePayProvider implements PaymentProvider {
       },
       body: JSON.stringify({
         // amountCents is not sent directly — AbacatePay charges the referenced product's own
-        // fixed price. It's kept on the PaymentProvider interface for providers (Stripe, etc.)
-        // that do take it directly.
+        // fixed price, and the billing cycle comes from the product too. It's kept on the
+        // PaymentProvider interface for providers (Stripe, etc.) that do take it directly.
+        // A subscription checkout accepts exactly one product.
         items: [{ id: this.productId, quantity: 1 }],
         // Card-only by product decision. To also accept PIX, add "PIX" here — but
         // keep the customer-facing copy in `app/page.tsx` and `components/paywall-cta.tsx`
         // in sync, since it names the accepted method.
         methods: ["CARD"],
+        // Our user id. Present on THIS checkout only — the renewal checkouts AbacatePay
+        // generates later carry `externalId: null`, which is why the webhook route joins
+        // renewals on the subscription id instead.
         externalId: input.userId,
+        // After 3 failed attempts 2 days apart, AbacatePay auto-cancels and fires
+        // `subscription.cancelled` with cancelledDueTo: "max_payment_retries_exceeded".
+        retryPolicy: { maxRetry: 3, retryEvery: 2 },
         returnUrl: input.returnUrl,
         completionUrl: input.completionUrl,
       }),
@@ -183,7 +195,7 @@ export class AbacatePayProvider implements PaymentProvider {
       error?: unknown;
     };
     if (!res.ok || !json.data?.url || !json.data.id) {
-      throw new Error(`abacatepay checkout failed: ${JSON.stringify(json.error ?? json)}`);
+      throw new Error(`abacatepay subscription checkout failed: ${JSON.stringify(json.error ?? json)}`);
     }
     return { url: json.data.url, providerChargeId: json.data.id };
   }
