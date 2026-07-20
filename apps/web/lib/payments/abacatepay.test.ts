@@ -132,7 +132,7 @@ describe("parseAbacateEvent", () => {
 
 // The three guards above are each tested in isolation. These tests cover their
 // COMPOSITION and ORDERING inside verifyAndParseWebhook, which is what actually
-// decides whether a callback can grant someone lifetime access.
+// decides whether a callback can grant someone a paid access period.
 describe("AbacatePayProvider.verifyAndParseWebhook", () => {
   const HMAC_KEY = "hmac_public_test_key";
   const URL_SECRET = "url_secret_test";
@@ -154,7 +154,7 @@ describe("AbacatePayProvider.verifyAndParseWebhook", () => {
   // THE case the whole design rests on. AbacatePay's HMAC key is published in their
   // docs and shared by every merchant, so anyone can produce a valid signature. If a
   // correct HMAC could bypass the URL-secret gate, the webhook would be forgeable by
-  // anyone who read the docs, and they could grant themselves lifetime access free.
+  // anyone who read the docs, and they could grant themselves a paid access period free.
   it("rejects a perfectly signed request bearing the WRONG URL secret", () => {
     const validSignature = sign(BODY, HMAC_KEY);
     expect(provider().verifyAndParseWebhook(BODY, validSignature, "wrong_secret")).toBeNull();

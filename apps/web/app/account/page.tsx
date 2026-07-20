@@ -19,9 +19,16 @@ export default async function AccountPage() {
         </div>
       ) : access.hasFullAccess ? (
         <div className="mt-6 rounded-lg border bg-muted/30 p-6">
-          <p className="font-medium">Lifetime access active</p>
+          <p className="font-medium">Subscription active</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            You can see every current and future idea.
+            You can see every idea. Your access runs through{" "}
+            {access.periodEnd?.toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+              timeZone: "UTC",
+            })}
+            .
           </p>
           <Link href="/ideas" className="mt-4 inline-block underline">
             Go to the ideas &rarr;
