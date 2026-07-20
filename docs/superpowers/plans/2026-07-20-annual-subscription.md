@@ -1220,3 +1220,290 @@ These cannot be done from the repo and the feature does not work without them:
 2. **Add the new webhook events** to the existing webhook registration: `subscription.completed`, `subscription.renewed`, `subscription.cancelled`, `subscription.payment_failed`, `checkout.refunded`, `checkout.disputed`, `checkout.lost`. Without this, renewals are never delivered.
 3. **Run the migration** against the deploy database: `pnpm --filter @workspace/db db:migrate`.
 4. **Exercise a renewal in dev mode against a `WEEKLY`-cycle test product.** With an annual cycle the first real renewal is a year away, so the renewal path — the most fragile code in this feature — otherwise ships completely unexercised. Confirm that `subscription.renewed` arrives, that its checkout `externalId` really is null, and that a second `purchases` row appears with a stacked period.
+
+---
+
+# Post-review addendum (Tasks 9-10)
+
+Added after the whole-branch review. Both were approved by the product owner.
+
+---
+
+## Task 9: Harden the payment routes (double-subscription guard + failure alerting)
+
+**Files:**
+- Modify: `apps/web/app/api/payments/checkout/route.ts`
+- Modify: `apps/web/app/api/payments/webhook/route.ts`
+- Create: `apps/web/lib/payments/alert.ts`
+- Test: `apps/web/lib/payments/alert.test.ts`
+
+**Interfaces:**
+- Consumes: nothing new
+- Produces: `notifyPaymentFailure(input: { kind: string; detail: string }): Promise<void>`
+
+### Problem 1 — perpetual double-billing
+
+The checkout guard only rejects when a **paid, unexpired** row exists; it ignores `pending`
+rows. A user who clicks Subscribe, is redirected to AbacatePay, abandons the page, comes
+back and clicks again creates a SECOND AbacatePay subscription. Both auto-renew — R$220/year
+in perpetuity. The same path opens if the pending INSERT throws after `createCheckout`
+succeeds: the user sees a failure, retries, and is double-subscribed.
+
+### Problem 2 — a year-long silent failure
+
+If `subscription.completed` is never delivered (e.g. the operator registers only
+`checkout.completed` in the AbacatePay dashboard — nothing enforces this), the first charge
+still grants a year via `checkout.completed`, so launch looks healthy. Twelve months later
+every renewal 503s because `provider_subscription_id` is NULL everywhere. The card is
+charged, access lapses, and the only evidence is a `console.error`.
+
+- [ ] **Step 1: Write the failing test for the alert helper**
+
+Create `apps/web/lib/payments/alert.test.ts`:
+
+```ts
+import { describe, expect, it, vi } from "vitest";
+import { formatPaymentAlert, shouldSendPaymentAlert } from "./alert";
+
+describe("shouldSendPaymentAlert", () => {
+  it("sends when an alert address is configured", () => {
+    expect(shouldSendPaymentAlert("ops@example.com")).toBe(true);
+  });
+  it("does not send when the address is unset", () => {
+    expect(shouldSendPaymentAlert(undefined)).toBe(false);
+    expect(shouldSendPaymentAlert("")).toBe(false);
+  });
+});
+
+describe("formatPaymentAlert", () => {
+  it("names the failure kind and includes the detail verbatim", () => {
+    const out = formatPaymentAlert({ kind: "owner_not_found", detail: "subs_abc123" });
+    expect(out.subject).toContain("owner_not_found");
+    expect(out.body).toContain("subs_abc123");
+  });
+
+  // The whole point of this alert is that the operator can act on it. A body that
+  // omits the identifier is unactionable — you cannot repair a row you cannot find.
+  it("never produces an empty body", () => {
+    const out = formatPaymentAlert({ kind: "row_still_pending", detail: "" });
+    expect(out.body.length).toBeGreaterThan(0);
+  });
+});
+```
+
+- [ ] **Step 2: Run it and confirm it fails**
+
+Run: `pnpm --filter web test alert`
+Expected: FAIL — "Failed to resolve import ./alert".
+
+- [ ] **Step 3: Implement the alert module**
+
+Create `apps/web/lib/payments/alert.ts`. Keep the pure parts (`shouldSendPaymentAlert`,
+`formatPaymentAlert`) free of any `@workspace/db` or `resend` import so they stay testable;
+the sending function may import Resend lazily INSIDE the function body — never at module
+scope, because `next build` imports this module during page-data collection and a
+module-scope `new Resend()` would hard-fail a key-less build (this repo has hit that before).
+
+Read `apps/web/lib/auth.ts` first and follow its existing lazy-Resend pattern exactly.
+
+`notifyPaymentFailure` must never throw: a failing alert must not turn a recoverable webhook
+into an unrecoverable one. Wrap the send in try/catch and `console.error` on failure.
+
+Use a new env var `PAYMENT_ALERT_EMAIL`. When unset, `notifyPaymentFailure` is a no-op that
+still logs — the webhook must work without it configured.
+
+- [ ] **Step 4: Run the test**
+
+Run: `pnpm --filter web test alert`
+Expected: PASS.
+
+- [ ] **Step 5: Wire the alert into the webhook's three 503 paths**
+
+In `apps/web/app/api/payments/webhook/route.ts`, call `await notifyPaymentFailure(...)`
+immediately before each of the three 5xx returns, passing a distinct `kind`:
+`unresolvable_paid_event`, `owner_not_found`, `row_still_pending`. Include the charge id
+and/or subscription id in `detail`.
+
+Do NOT change any status code, any DB write, or the 400 verification path.
+
+- [ ] **Step 6: Add the pending-checkout guard**
+
+In `apps/web/app/api/payments/checkout/route.ts`, after the existing active-access guard,
+add a second guard: if the user has a `pending` purchase row created within the last 30
+minutes, do NOT create another subscription. Return `{ pendingCheckout: true }` with 200.
+
+Define the window as a named constant, not a magic number.
+
+Rationale to put in a comment: each `createCheckout` call creates a REAL auto-renewing
+subscription at AbacatePay. Two of them bill the customer twice a year forever, and nothing
+in the app reconciles that.
+
+- [ ] **Step 7: Handle the new response shape in the CTA**
+
+`apps/web/components/paywall-cta.tsx` already treats "200 without a url" as "go to /account".
+Verify `{ pendingCheckout: true }` flows through that path and cannot navigate to `undefined`.
+Add the field to the response type it parses. Do not otherwise change its behavior.
+
+- [ ] **Step 8: Document the env var**
+
+Add to `apps/web/.env.example`:
+
+```
+# Optional but STRONGLY recommended. Where to email when a payment webhook cannot be
+# resolved (owner_not_found / unresolvable_paid_event / row_still_pending). Without it
+# these failures are only visible in logs, and a lost subscription id is invisible for a
+# full year — until renewals start failing.
+PAYMENT_ALERT_EMAIL=
+```
+
+- [ ] **Step 9: Verify**
+
+```bash
+pnpm typecheck
+pnpm --filter web test
+pnpm --filter @workspace/db test
+DATABASE_URL='postgresql://u:p@localhost/db' pnpm --filter web build
+```
+All must pass.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add apps/web/lib/payments/alert.ts apps/web/lib/payments/alert.test.ts apps/web/app/api/payments/checkout/route.ts apps/web/app/api/payments/webhook/route.ts apps/web/components/paywall-cta.tsx apps/web/.env.example
+git commit -m "feat(payments): guard against double subscriptions and alert on unresolvable webhooks"
+```
+
+---
+
+## Task 10: Self-service cancellation
+
+**Files:**
+- Modify: `packages/db/src/schema.ts` (add `cancelledAt`, `cancelledDueTo`)
+- Create: `packages/db/drizzle/0004_*.sql` (generated)
+- Modify: `apps/web/lib/payments/provider.ts` (interface gains `cancelSubscription`)
+- Modify: `apps/web/lib/payments/abacatepay.ts` (implement it)
+- Create: `apps/web/app/api/payments/cancel/route.ts`
+- Create: `apps/web/components/cancel-subscription.tsx`
+- Modify: `apps/web/app/account/page.tsx`
+- Modify: `apps/web/lib/viewer-access.ts` (expose `cancelledAt`)
+- Modify: `apps/web/app/api/payments/webhook/route.ts` (persist cancellation)
+- Modify: `apps/web/app/api/payments/checkout/route.ts` (allow resume after cancel)
+
+We advertise "Cancel any time" on the landing page and the paywall. Today nothing cancels,
+`/account` keeps rendering "Subscription active" to someone who already cancelled, and
+because their period is still unexpired the checkout guard returns `alreadyActive` — so
+they cannot resume either. This task makes the advertised promise real.
+
+**Key constraint:** AbacatePay cancellation is IMMEDIATE and IRREVERSIBLE — it stops future
+charges but does not refund. The customer keeps access through `period_end`. "Resume"
+therefore means starting a NEW subscription, not reviving the old one.
+
+- [ ] **Step 1: Add the schema columns**
+
+In `packages/db/src/schema.ts`, add to `purchases`:
+
+```ts
+    // Set when AbacatePay confirms the subscription was cancelled. Access is NOT revoked —
+    // the customer keeps what they paid for through period_end. This exists so the account
+    // page can say "will not renew" instead of "active", and so the checkout guard knows
+    // to let them re-subscribe before their current period ends.
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelledDueTo: text("cancelled_due_to"),
+```
+
+- [ ] **Step 2: Generate the migration**
+
+Run: `pnpm --filter @workspace/db db:generate`
+Expected: `0004_*.sql` with two nullable ADD COLUMNs. Both MUST be nullable. Verify with
+`cat packages/db/drizzle/0004_*.sql`.
+
+- [ ] **Step 3: Extend the PaymentProvider interface**
+
+In `apps/web/lib/payments/provider.ts`:
+
+```ts
+  /**
+   * Cancels a recurring subscription at the provider. Immediate and irreversible for
+   * AbacatePay: future charges stop, nothing is refunded, and the customer keeps access
+   * through the period they already paid for. Returns true when the provider confirms.
+   */
+  cancelSubscription(providerSubscriptionId: string): Promise<boolean>;
+```
+
+- [ ] **Step 4: Implement it on AbacatePayProvider**
+
+In `apps/web/lib/payments/abacatepay.ts`, POST to `${BASE_URL}/subscriptions/cancel` with
+`{ id: providerSubscriptionId }` and a Bearer token, following the exact shape and error
+handling of the existing `createCheckout`. Return `true` only when the response is ok and
+the envelope reports success; throw with the provider's error payload otherwise.
+
+- [ ] **Step 5: Persist cancellation from the webhook**
+
+In the webhook's `cancelled` branch — which today only logs — write `cancelledAt` and
+`cancelledDueTo` to ALL of that user's rows carrying the subscription id.
+
+This branch MUST still not touch `status`, `period_start`, or `period_end`. Cancelling is
+not revoking. Add an assertion-style comment saying so.
+
+Keep it idempotent: a redelivered `cancelled` event must not change anything the second time
+(guard on `isNull(purchases.cancelledAt)`).
+
+- [ ] **Step 6: Expose cancellation state to the UI**
+
+In `apps/web/lib/viewer-access.ts`, select `cancelledAt` alongside `periodEnd` on the same
+furthest-period row and return it, so `getViewerAccess()` yields
+`{ userId, hasFullAccess, periodEnd, cancelledAt }`.
+
+- [ ] **Step 7: Add the cancel API route**
+
+Create `apps/web/app/api/payments/cancel/route.ts`. It must:
+- require a session (401 otherwise);
+- find the user's furthest-period paid row and read its `providerSubscriptionId`;
+- return 400 with a clear message if there is no active subscription or no subscription id;
+- call `provider.cancelSubscription(...)`;
+- on success return `{ cancelled: true }`. Do NOT write `cancelledAt` here — let the
+  `subscription.cancelled` webhook be the single writer, so the DB reflects what the
+  provider actually did. Say this in a comment.
+
+- [ ] **Step 8: Allow re-subscribing after cancellation**
+
+In `apps/web/app/api/payments/checkout/route.ts`, the active-access guard must no longer
+block a user whose current period is cancelled (`cancelledAt IS NOT NULL`). Without this a
+customer who cancels by mistake is locked out of resubscribing until their access lapses.
+
+- [ ] **Step 9: Build the cancel button**
+
+Create `apps/web/components/cancel-subscription.tsx`, a client component that POSTs to
+`/api/payments/cancel` and reloads on success. It MUST require an explicit confirmation step
+before sending (a two-click in-component confirm — NOT `window.confirm`, which is a blocking
+browser dialog). State plainly in the confirm text that cancelling is immediate, that no
+refund is issued, and that access continues until the period ends.
+
+Handle the failure case: show an error and re-enable the button. Never leave it stuck.
+
+- [ ] **Step 10: Update the account page**
+
+In `apps/web/app/account/page.tsx`, split the `hasFullAccess` branch in two:
+- not cancelled → "Subscription active", renewal date, and `<CancelSubscription />`
+- cancelled → "Access ends &lt;date&gt;. Your subscription will not renew." and a
+  `<PaywallCta authenticated />` so they can start a new one.
+
+Keep the existing `timeZone: "UTC"` date formatting for every date rendered.
+
+- [ ] **Step 11: Verify**
+
+```bash
+pnpm typecheck
+pnpm --filter web test
+pnpm --filter @workspace/db test
+DATABASE_URL='postgresql://u:p@localhost/db' pnpm --filter web build
+grep -rniE "lifetime|forever|one[- ]time payment" apps/web/app/page.tsx apps/web/app/account/page.tsx apps/web/app/ideas apps/web/components
+```
+All must pass; the grep must return nothing.
+
+- [ ] **Step 12: Commit**
+
+```bash
+git add packages/db apps/web/lib/payments apps/web/app/api/payments apps/web/components apps/web/app/account
+git commit -m "feat(payments): self-service subscription cancellation"
+```
