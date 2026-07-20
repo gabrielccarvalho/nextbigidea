@@ -1151,12 +1151,30 @@ In `apps/web/app/ideas/[slug]/page.tsx`, replace the locked paragraph (lines 35-
         </p>
 ```
 
-- [ ] **Step 5: Verify no stale copy survives**
+- [ ] **Step 5: Update the two stale test comments**
 
-Run: `grep -rniE "lifetime|forever|one[- ]time payment|single R\\$110" apps/web/app apps/web/components apps/web/lib`
+`apps/web/lib/payments/abacatepay.test.ts` lines 135 and 157 describe the webhook gate as
+deciding "whether a callback can grant someone lifetime access". Replace the phrase
+`lifetime access` with `a paid access period` in both comments. Change nothing else in
+those tests — this is comment accuracy, not behavior.
+
+- [ ] **Step 6: Verify no stale customer-facing copy survives**
+
+Run:
+
+```bash
+grep -rniE "lifetime|forever|one[- ]time payment|single R\$110" \
+  apps/web/app/page.tsx apps/web/app/account/page.tsx \
+  apps/web/app/ideas apps/web/components apps/web/lib/payments/provider.ts
+```
+
 Expected: no output. Any hit is copy that still needs updating.
 
-- [ ] **Step 6: Full verification sweep**
+Note the scoping: `app/api/payments/webhook/route.ts` is deliberately excluded because it
+contains the words "retry forever" and "looping forever" in comments about provider retry
+behavior. Those are correct technical prose, not stale pricing copy — do not "fix" them.
+
+- [ ] **Step 7: Full verification sweep**
 
 Run each and confirm all pass:
 
@@ -1170,10 +1188,10 @@ pnpm --filter web build
 
 Expected: all PASS. `build` is the one that catches a bad JSX edit in the copy changes.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add apps/web/components/paywall-cta.tsx apps/web/app/page.tsx apps/web/app/account/page.tsx "apps/web/app/ideas/[slug]/page.tsx"
+git add apps/web/components/paywall-cta.tsx apps/web/app/page.tsx apps/web/app/account/page.tsx "apps/web/app/ideas/[slug]/page.tsx" apps/web/lib/payments/abacatepay.test.ts
 git commit -m "feat(web): switch customer-facing copy to the annual subscription"
 ```
 
