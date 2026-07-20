@@ -37,51 +37,81 @@ export const HERO = {
     "Every week we read public posts across Reddit, Hacker News, and Product Hunt looking for people describing a product that doesn't exist yet — then score the strongest signals and link each one back to the posts that prove it. Nobody's built them yet.",
   primaryCta: "Browse the ideas",
   primaryHref: "/ideas",
-  secondaryCta: "See how it works",
-  secondaryHref: "/#how-it-works",
+  secondaryCta: "See what you get",
+  secondaryHref: "/#what-you-get",
 } as const;
 
-export const PROBLEM = {
-  eyebrow: "Why most side projects die",
-  title: "Building something nobody asked for is the default outcome.",
-  body: "You can ship fast, write clean code, and still spend six months on a product with no demand behind it. The hard part was never the building. It's knowing what's worth building.",
+export type SpecimenEvidence = {
+  quote: string;
+  source: (typeof SOURCES)[number]["name"];
+};
+
+// Illustrative, NOT a real published entry — the same standard as SAMPLE_IDEAS
+// below. `exampleTag` renders on the card, and evidence rows deliberately carry
+// no href. See docs/superpowers/specs/2026-07-20-landing-page-rework-design.md,
+// "Content integrity". Enforced by lib/content.test.ts.
+export const SPECIMEN = {
+  eyebrow: "What you get",
+  sectionTitle: "This is one of them.",
+  intro:
+    "One entry, in full. Every published idea carries the same evidence, so you can judge it the way you'd judge your own research.",
+  exampleTag: "Example entry",
+  evidenceHeading: "What people actually said",
+  labels: {
+    score: "Demand",
+    asks: "Asks",
+    mrr: "Est. MRR",
+    sources: "Sources",
+    competition: "What exists today",
+  },
+  idea: {
+    niche: "Finance ops",
+    title: "Invoice autopilot",
+    oneLiner:
+      "Watches your billing inbox and sends the invoice without being asked twice.",
+    demandScore: 94,
+    asks: 47,
+    mrrRange: "$2–6k",
+    competition:
+      "Three tools do this inside a larger billing suite. None of them do it on its own, and each one expects you to move your whole invoicing workflow across first.",
+    evidence: [
+      { quote: "Six tools tried, none of them just send the invoice.", source: "Reddit" },
+      { quote: "I'd pay for something that does only this.", source: "Hacker News" },
+      { quote: "Every billing tool wants to be an ERP.", source: "Product Hunt" },
+    ] as readonly SpecimenEvidence[],
+  },
 } as const;
 
-export const HOW_IT_WORKS = {
-  eyebrow: "How it works",
-  title: "Demand goes in. Scored ideas come out.",
+// The four passages that scroll past the pinned specimen. `key` maps to the
+// region of the card that highlights while the passage is active — the values
+// must stay in sync with the SpecimenRegion type in components/specimen-card.tsx.
+export const DISSECTION = {
   steps: [
     {
       n: "01",
-      title: "Scan",
-      body: "Every week we pull public posts from Reddit, Hacker News, and Product Hunt.",
+      key: "score",
+      title: "The score",
+      body: "0–100, from how many people asked and how strongly they asked. A 94 means this one came up constantly, in frustrated language.",
     },
     {
       n: "02",
-      title: "Cluster & score",
-      body: "Posts describing the same missing product get grouped, scored for demand, and sized for revenue.",
+      key: "numbers",
+      title: "The numbers",
+      body: "Ask count is distinct posts, not upvotes. The revenue figure is a range derived from comparable products — a range, because that is what it honestly is.",
     },
     {
       n: "03",
-      title: "You build",
-      body: "You get the idea, the numbers behind it, and links to every post that produced it.",
+      key: "receipts",
+      title: "The receipts",
+      body: "Every claim traces to a post. On a published entry these are live links you can go read yourself.",
+    },
+    {
+      n: "04",
+      key: "catch",
+      title: "The catch",
+      body: "What already exists, and where it falls short of what people asked for.",
     },
   ],
-} as const;
-
-export const ANATOMY = {
-  eyebrow: "What you get",
-  title: "Anatomy of an idea.",
-  intro: "Every entry carries the same evidence, so you can judge it the way you'd judge your own research.",
-  callouts: [
-    { label: "Demand score", body: "0–100, derived from how many people asked and how strongly." },
-    { label: "Ask count", body: "How many distinct posts describe this missing product." },
-    { label: "Estimated MRR", body: "A range derived from comparable products — shown as a range, because it is one." },
-    { label: "Competition notes", body: "What already exists, and where it falls short of what people asked for." },
-    { label: "Validation signals", body: "The specific phrases that indicate willingness to pay." },
-    { label: "Source links", body: "Every post behind the idea, linked. Go read them yourself." },
-  ],
-  closer: "Every number here traces back to a post you can go read yourself.",
 } as const;
 
 export const WHY_EVIDENCE = {
@@ -215,7 +245,7 @@ export const FINAL_CTA = {
 
 export const NAV = {
   links: [
-    { label: "How it works", href: "/#how-it-works" },
+    { label: "What you get", href: "/#what-you-get" },
     { label: "Pricing", href: "/#pricing" },
     { label: "FAQ", href: "/#faq" },
   ],
@@ -228,7 +258,7 @@ export const FOOTER = {
       heading: "Product",
       links: [
         { label: "Ideas", href: "/ideas" },
-        { label: "How it works", href: "/#how-it-works" },
+        { label: "What you get", href: "/#what-you-get" },
         { label: "Pricing", href: "/#pricing" },
       ],
     },
@@ -284,4 +314,7 @@ export const SAMPLE_POSTS: readonly string[] = [
   "context is lost every time someone leaves",
   "onboarding a new dev takes three weeks",
   "our wiki is a graveyard",
+  "we hacked something together in a weekend and still use it",
+  "every tool does ten things, I need one",
+  "is there a simple version of this that just works?",
 ] as const;

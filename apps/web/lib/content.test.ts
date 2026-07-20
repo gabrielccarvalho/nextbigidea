@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as content from "./content";
-import { COMPANY, PRICING, SOURCES } from "./content";
+import { COMPANY, PRICING, SOURCES, SPECIMEN } from "./content";
 
 // Recursively collect every string in the content module so a new section
 // can't opt out of these rules by being added later.
@@ -84,5 +84,33 @@ describe("legal constants", () => {
 
   it("has a plausible contact email", () => {
     expect(COMPANY.email).toMatch(/^[^@\s]+@[^@\s]+\.[^@\s]+$/);
+  });
+});
+
+describe("specimen content integrity", () => {
+  // These assertions encode a product requirement, not a style preference.
+  // The page's central claim is that every number traces back to a post you
+  // can go read. The specimen is hand-written, so it must be labelled as an
+  // example and must never present a fabricated audit trail.
+  it("carries a non-empty example tag", () => {
+    expect(SPECIMEN.exampleTag.trim().length).toBeGreaterThan(0);
+  });
+
+  it("never attaches a link to an evidence quote", () => {
+    for (const row of SPECIMEN.idea.evidence) {
+      expect(Object.keys(row).sort()).toEqual(["quote", "source"]);
+    }
+  });
+
+  it("attributes every quote to a declared source", () => {
+    const names = SOURCES.map((s) => s.name);
+    for (const row of SPECIMEN.idea.evidence) {
+      expect(names).toContain(row.source);
+    }
+  });
+
+  it("has a demand score inside the documented 0-100 range", () => {
+    expect(SPECIMEN.idea.demandScore).toBeGreaterThanOrEqual(0);
+    expect(SPECIMEN.idea.demandScore).toBeLessThanOrEqual(100);
   });
 });
