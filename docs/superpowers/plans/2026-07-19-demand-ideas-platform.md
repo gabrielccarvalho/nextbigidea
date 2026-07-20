@@ -1587,14 +1587,17 @@ git commit -m "feat(pipeline): add Haiku client and relevance filter stage"
 ## Task 9: Cluster stage (pg_trgm match into existing ideas)
 
 **Files:**
-- Create: `packages/pipeline/src/stages/cluster.ts`
-- Test: `packages/pipeline/test/cluster.test.ts`
+- Create: `packages/pipeline/src/stages/themes.ts` (pure — NO `@workspace/db` import)
+- Create: `packages/pipeline/src/stages/cluster.ts` (DB + Haiku orchestration)
+- Test: `packages/pipeline/test/cluster.test.ts` (imports the pure fns from `./themes`)
+
+> Same split rationale as Task 7: `packages/db`'s client throws at import time without `DATABASE_URL`, so pure functions sharing a module with DB code can't be tested without a fake connection string. `cluster.ts` re-exports `slugify`/`parseThemes` so downstream imports from `./cluster` keep working.
 
 **Interfaces:**
 - Consumes: `db`, `ideas` from `@workspace/db`; `HaikuClient`; `RawPost`.
 - Produces:
-  - `export function slugify(title: string): string` (pure).
-  - `export function parseThemes(text: string): { title: string; postKeys: string[] }[]` (pure — parses Haiku's JSON theme grouping).
+  - `themes.ts`: `export function slugify(title: string): string` (pure).
+  - `themes.ts`: `export function parseThemes(text: string): { title: string; postKeys: string[] }[]` (pure — parses Haiku's JSON theme grouping).
   - `export async function clusterPosts(posts: RawPost[], client: HaikuClient): Promise<{ themeTitle: string; posts: RawPost[]; matchedIdeaId: number | null }[]>` — groups posts into themes via Haiku, then for each theme queries `ideas` with `similarity(keywords, $theme) > 0.3` (pg_trgm) to find an existing idea to append evidence to.
 
 - [ ] **Step 1: Write the failing test for pure helpers**
