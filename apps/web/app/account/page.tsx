@@ -5,6 +5,7 @@ import { PaywallCta } from "@/components/paywall-cta";
 import { CancelSubscription } from "@/components/cancel-subscription";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { ACCOUNT_PAGE } from "@/lib/content";
 
 export default async function AccountPage() {
   const access = await getViewerAccess();
