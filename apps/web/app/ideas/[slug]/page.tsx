@@ -33,8 +33,8 @@ export default async function IdeaDetailPage({
         <div className="mb-1 mt-4 text-xs uppercase text-muted-foreground">{teaser.niche}</div>
         <h1 className="text-2xl font-bold">{teaser.title}</h1>
         <p className="mt-2 text-muted-foreground">
-          This idea is locked. Unlock the full database to see the demand evidence, sources,
-          MRR estimate, and validation signals.
+          This idea is locked. Subscribe to see the demand evidence, sources, MRR estimate,
+          and validation signals.
         </p>
         <div className="mt-6">
           <PaywallCta authenticated={access.userId != null} />

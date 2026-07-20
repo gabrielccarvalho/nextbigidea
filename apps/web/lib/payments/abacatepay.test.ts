@@ -108,12 +108,12 @@ describe("parseAbacateEvent", () => {
     expect(ev).toEqual({ type: "paid", providerChargeId: "char_xyz789", externalId: "user_def" });
   });
 
-  it("maps other events to type other", () => {
+  it("maps a refund event to a refunded event", () => {
     const ev = parseAbacateEvent({
       event: "checkout.refunded",
       data: { checkout: { id: "bill_abc123xyz" } },
     });
-    expect(ev?.type).toBe("other");
+    expect(ev?.type).toBe("refunded");
   });
 
   it("returns null on unrecognized shape", () => {
@@ -132,7 +132,7 @@ describe("parseAbacateEvent", () => {
 
 // The three guards above are each tested in isolation. These tests cover their
 // COMPOSITION and ORDERING inside verifyAndParseWebhook, which is what actually
-// decides whether a callback can grant someone lifetime access.
+// decides whether a callback can grant someone a paid access period.
 describe("AbacatePayProvider.verifyAndParseWebhook", () => {
   const HMAC_KEY = "hmac_public_test_key";
   const URL_SECRET = "url_secret_test";
@@ -154,7 +154,7 @@ describe("AbacatePayProvider.verifyAndParseWebhook", () => {
   // THE case the whole design rests on. AbacatePay's HMAC key is published in their
   // docs and shared by every merchant, so anyone can produce a valid signature. If a
   // correct HMAC could bypass the URL-secret gate, the webhook would be forgeable by
-  // anyone who read the docs, and they could grant themselves lifetime access free.
+  // anyone who read the docs, and they could grant themselves a paid access period free.
   it("rejects a perfectly signed request bearing the WRONG URL secret", () => {
     const validSignature = sign(BODY, HMAC_KEY);
     expect(provider().verifyAndParseWebhook(BODY, validSignature, "wrong_secret")).toBeNull();
@@ -185,5 +185,116 @@ describe("AbacatePayProvider.verifyAndParseWebhook", () => {
       URL_SECRET,
     );
     expect(event).toBeNull();
+  });
+});
+
+// Payload shapes taken from https://docs.abacatepay.com/pages/webhooks/events/subscriptions
+describe("parseAbacateEvent — subscriptions", () => {
+  it("parses subscription.completed, capturing both ids and the user", () => {
+    expect(
+      parseAbacateEvent({
+        id: "log_taQArRTApemxwcbw5EJeF3hS",
+        event: "subscription.completed",
+        apiVersion: 2,
+        devMode: false,
+        data: {
+          subscription: { id: "subs_tAFq", status: "ACTIVE", frequency: "ANNUALLY" },
+          customer: { id: "cust_def456" },
+          checkout: { id: "bill_first123", externalId: "user_abc", status: "PAID" },
+        },
+      }),
+    ).toEqual({
+      type: "paid",
+      providerChargeId: "bill_first123",
+      providerSubscriptionId: "subs_tAFq",
+      externalId: "user_abc",
+    });
+  });
+
+  // THE load-bearing case. AbacatePay generates the renewal checkout itself, so it carries
+  // `externalId: null` — the user is NOT resolvable from this payload. If parsing drops the
+  // subscription id, every renewal verifies, parses, and then extends nobody's access.
+  it("parses subscription.renewed and keeps the subscription id despite a null externalId", () => {
+    expect(
+      parseAbacateEvent({
+        id: "log_abc123xyz",
+        event: "subscription.renewed",
+        apiVersion: 2,
+        devMode: false,
+        data: {
+          subscription: { id: "subs_tAFq", status: "ACTIVE", frequency: "ANNUALLY" },
+          customer: { id: "cust_def456" },
+          checkout: { id: "bill_renewxyz789", externalId: null, status: "PAID" },
+        },
+      }),
+    ).toEqual({
+      type: "renewed",
+      providerChargeId: "bill_renewxyz789",
+      providerSubscriptionId: "subs_tAFq",
+    });
+  });
+
+  // The absence of `providerChargeId` here is the whole point, not an omission: it is what
+  // makes "cancellation revokes access" structurally impossible to write. Every revocation
+  // path keys on a charge id, so a cancelled event has nothing to revoke. Enforced by the
+  // PaymentEvent union at compile time; asserted here so a well-meaning future edit that
+  // "helpfully" adds the charge id fails loudly.
+  it("parses subscription.cancelled with its reason and no charge id", () => {
+    expect(
+      parseAbacateEvent({
+        event: "subscription.cancelled",
+        data: {
+          subscription: {
+            id: "subs_tAFq",
+            status: "CANCELLED",
+            canceledAt: "2026-07-20T12:00:00.000Z",
+            cancelledDueTo: "max_payment_retries_exceeded",
+          },
+        },
+      }),
+    ).toEqual({
+      type: "cancelled",
+      providerSubscriptionId: "subs_tAFq",
+      cancelledDueTo: "max_payment_retries_exceeded",
+    });
+  });
+
+  it("parses subscription.payment_failed", () => {
+    expect(
+      parseAbacateEvent({
+        event: "subscription.payment_failed",
+        data: {
+          subscription: { id: "subs_tAFq", status: "ACTIVE" },
+          payment: { status: "FAILED", reason: "card_declined" },
+        },
+      }),
+    ).toEqual({ type: "payment_failed", providerSubscriptionId: "subs_tAFq" });
+  });
+
+  it("returns null when a subscription event has no subscription id", () => {
+    expect(parseAbacateEvent({ event: "subscription.renewed", data: { subscription: {} } })).toBeNull();
+  });
+
+  it("maps refund, dispute and loss to a single refunded event", () => {
+    for (const event of ["checkout.refunded", "checkout.disputed", "checkout.lost"]) {
+      expect(parseAbacateEvent({ event, data: { checkout: { id: "bill_x" } } })).toEqual({
+        type: "refunded",
+        providerChargeId: "bill_x",
+      });
+    }
+  });
+
+  it("maps transparent refunds to refunded too", () => {
+    expect(
+      parseAbacateEvent({ event: "transparent.refunded", data: { transparent: { id: "pix_x" } } }),
+    ).toEqual({ type: "refunded", providerChargeId: "pix_x" });
+  });
+
+  it("ignores trial and plan-change events", () => {
+    for (const event of ["subscription.trial_started", "subscription.plan_changed"]) {
+      expect(
+        parseAbacateEvent({ event, data: { subscription: { id: "subs_tAFq" } } }),
+      ).toEqual({ type: "other" });
+    }
   });
 });

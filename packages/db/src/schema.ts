@@ -93,17 +93,36 @@ export const purchases = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     provider: text("provider").notNull(), // abacatepay
     providerChargeId: text("provider_charge_id").notNull(),
+    // AbacatePay's subscription id (subs_...). The join key for renewals: a
+    // `subscription.renewed` payload's checkout carries `externalId: null`, so the
+    // user CANNOT be resolved from the renewal itself. Captured on
+    // `subscription.completed`, where externalId is present.
+    providerSubscriptionId: text("provider_subscription_id"),
     amountCents: integer("amount_cents").notNull(),
     currency: text("currency").notNull().default("BRL"),
     status: text("status").notNull().default("pending"), // pending | paid | refunded
+    // The access window this payment bought. Nullable because the checkout route writes a
+    // `pending` row before any money moves — an abandoned checkout must not grant a period.
+    // Invariant: status = 'paid' implies both are non-null.
+    periodStart: timestamp("period_start", { withTimezone: true }),
+    periodEnd: timestamp("period_end", { withTimezone: true }),
     paidAt: timestamp("paid_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // Set when AbacatePay confirms the subscription was cancelled. Access is NOT revoked —
+    // the customer keeps what they paid for through period_end. This exists so the account
+    // page can say "will not renew" instead of "active", and so the checkout guard knows
+    // to let them re-subscribe before their current period ends.
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelledDueTo: text("cancelled_due_to"),
   },
   // Payment providers RETRY webhooks. Without this constraint, two concurrent
   // deliveries of the same charge can both pass a check-then-insert and write
   // duplicate paid rows. The unique index makes idempotency a database
   // guarantee rather than a race the application hopes to win.
-  (t) => [uniqueIndex("purchases_provider_charge_uq").on(t.providerChargeId)],
+  (t) => [
+    uniqueIndex("purchases_provider_charge_uq").on(t.providerChargeId),
+    index("purchases_provider_subscription_idx").on(t.providerSubscriptionId),
+  ],
 );
 
 // --- Better Auth core tables ---

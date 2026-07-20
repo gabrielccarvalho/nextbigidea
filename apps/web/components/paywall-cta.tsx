@@ -7,27 +7,40 @@ export function PaywallCta({ authenticated }: { authenticated: boolean }) {
   async function buy() {
     setLoading(true);
     const res = await fetch("/api/payments/checkout", { method: "POST" });
-    if (res.ok) {
-      const { url } = (await res.json()) as { url: string };
-      window.location.href = url;
-    } else {
+    if (!res.ok) {
       setLoading(false);
       window.location.href = "/account";
+      return;
     }
+    // The route answers 200 with `{ alreadyActive: true }` when a subscription is already
+    // running, or `{ pendingCheckout: true }` when one was started recently and is still in
+    // flight. Reading `url` off either shape used to navigate to `undefined` — both fall
+    // through to the same "go to /account" branch below instead.
+    const body = (await res.json()) as {
+      url?: string;
+      alreadyActive?: boolean;
+      pendingCheckout?: boolean;
+    };
+    if (body.url) {
+      window.location.href = body.url;
+      return;
+    }
+    setLoading(false);
+    window.location.href = "/account";
   }
 
   return (
     <div className="rounded-lg border bg-muted/30 p-6 text-center">
-      <h2 className="text-lg font-semibold">Unlock every idea — R$110 lifetime</h2>
+      <h2 className="text-lg font-semibold">Unlock every idea — R$110/year</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        One card payment. All current and future ideas, forever.
+        Card payment, renews yearly. Cancel any time.
       </p>
       <button
         onClick={buy}
         disabled={loading}
         className="mt-4 rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background disabled:opacity-50"
       >
-        {loading ? "Redirecting…" : authenticated ? "Unlock now" : "Sign in to unlock"}
+        {loading ? "Redirecting…" : authenticated ? "Subscribe now" : "Sign in to subscribe"}
       </button>
     </div>
   );

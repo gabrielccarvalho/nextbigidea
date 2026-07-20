@@ -22,6 +22,20 @@
       "when": 1784514685362,
       "tag": "0002_kind_machine_man",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784524897930,
+      "tag": "0003_married_santa_claus",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784556229958,
+      "tag": "0004_violet_unus",
+      "breakpoints": true
     }
   ]
 }
