@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db, purchases } from "@workspace/db";
 import { getPaymentProvider } from "@/lib/payments";
@@ -12,16 +12,22 @@ export async function POST() {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
 
-  // Access is lifetime, so a second charge is never legitimate. The UI hides the CTA
-  // from paid users, but this endpoint is directly callable and a stray double-click
-  // would otherwise create a second payable PIX charge — and a refund request.
-  const alreadyPaid = await db
-    .select({ id: purchases.id })
+  // A second subscription is illegitimate only while access is STILL ACTIVE. Once the period
+  // has lapsed the user must be able to subscribe again — the old lifetime guard rejected
+  // every charge forever, which would have made re-subscribing impossible.
+  const active = await db
+    .select({ periodEnd: purchases.periodEnd })
     .from(purchases)
-    .where(and(eq(purchases.userId, session.user.id), eq(purchases.status, "paid")))
+    .where(
+      and(
+        eq(purchases.userId, session.user.id),
+        eq(purchases.status, "paid"),
+        gt(purchases.periodEnd, new Date()),
+      ),
+    )
     .limit(1);
-  if (alreadyPaid.length > 0) {
-    return NextResponse.json({ alreadyPaid: true });
+  if (active.length > 0) {
+    return NextResponse.json({ alreadyActive: true, periodEnd: active[0]!.periodEnd });
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
