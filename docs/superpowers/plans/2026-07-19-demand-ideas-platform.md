@@ -1100,6 +1100,14 @@ describe("degradable adapters enablement", () => {
     const e = env({ sources: { ...env().sources, linkedin: true } });
     expect(linkedinAdapter.enabled(e)).toBe(false);
   });
+
+  it("linkedin is enabled only with flag AND cookie", () => {
+    const e = env({
+      sources: { ...env().sources, linkedin: true },
+      linkedinSessionCookie: "li_at=abc",
+    });
+    expect(linkedinAdapter.enabled(e)).toBe(true);
+  });
 });
 ```
 
@@ -1186,6 +1194,7 @@ export const xAdapter: SourceAdapter = {
 
 `packages/pipeline/src/adapters/linkedin.ts`:
 ```ts
+import { createHash } from "node:crypto";
 import type { PipelineEnv, RawPost, SourceAdapter } from "../types";
 import { cookiesFor, withBrowser } from "./browser";
 
@@ -1205,11 +1214,16 @@ export const linkedinAdapter: SourceAdapter = {
       await page.goto(SEARCH, { waitUntil: "networkidle", timeout: 30_000 });
       const posts = await page.locator('div.feed-shared-update-v2').all();
       const out: RawPost[] = [];
-      for (const [i, el] of posts.slice(0, 40).entries()) {
+      for (const el of posts.slice(0, 40)) {
         const text = (await el.innerText().catch(() => "")).trim();
         const urn = await el.getAttribute("data-urn").catch(() => null);
         if (!text) continue;
-        const id = urn ?? `linkedin-${Date.now()}-${i}`;
+        // Prefer LinkedIn's own stable URN. When it's missing, derive the id
+        // deterministically from the post text so the SAME post yields the SAME
+        // id on every run. A run-varying id (Date.now(), array index) would
+        // defeat the (source, source_post_id) unique index and re-insert the
+        // post every week, inflating ask_count and corrupting demand signal.
+        const id = urn ?? `linkedin-sha-${createHash("sha256").update(text).digest("hex").slice(0, 16)}`;
         out.push({
           source: "linkedin",
           sourcePostId: id,
@@ -1225,7 +1239,7 @@ export const linkedinAdapter: SourceAdapter = {
 };
 ```
 
-- [ ] **Step 6: Run — verify passes.** `pnpm --filter @workspace/pipeline test degradable` → PASS (3 tests).
+- [ ] **Step 6: Run — verify passes.** `pnpm --filter @workspace/pipeline test degradable` → PASS (4 tests).
 
 - [ ] **Step 7: Commit**
 ```bash
