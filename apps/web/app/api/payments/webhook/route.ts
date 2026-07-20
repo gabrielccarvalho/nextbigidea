@@ -50,6 +50,49 @@ async function lockUser(tx: Tx, userId: string) {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}::text))`);
 }
 
+/**
+ * THE single subscription-id back-fill. Both `paid` sub-branches route through here so the
+ * guarantees below are stated and enforced in exactly one place.
+ *
+ * `checkout.completed` and `subscription.completed` are both emitted for a subscription's FIRST
+ * charge and both carry the same charge id, but only `subscription.completed` carries the
+ * subscription id — the sole join key for every future renewal. Whichever of the two loses the
+ * race must still be able to deposit that id, or renewals 503 forever and access silently lapses.
+ *
+ * Guarantees, all of which callers rely on:
+ *  - Callers MUST already hold the user's advisory lock, so this never runs concurrently with
+ *    another write to the same user's rows.
+ *  - The row is re-read `FOR UPDATE` here rather than trusting a value read before the lock: in
+ *    the racing case the pre-lock read is a stale READ COMMITTED pre-image.
+ *  - `isNull(providerSubscriptionId)` is carried on the UPDATE, so "never overwrite a stored id"
+ *    is a DATABASE guarantee, not an application check that a concurrent writer could slip past.
+ *  - Only that one nullable column is written. `status`, `paid_at` and the period columns are
+ *    never touched, so this can never grant, extend or revoke access.
+ *  - Idempotent: a second run sees a non-null stored id and does nothing.
+ */
+async function backfillSubscriptionId(
+  tx: Tx,
+  purchaseId: number,
+  incoming: string | null | undefined,
+) {
+  if (!incoming) return;
+
+  const rows = await tx
+    .select({ providerSubscriptionId: purchases.providerSubscriptionId })
+    .from(purchases)
+    .where(eq(purchases.id, purchaseId))
+    .limit(1)
+    .for("update");
+
+  const stored = rows[0]?.providerSubscriptionId;
+  if (rows.length === 0 || !needsSubscriptionIdBackfill(stored, incoming)) return;
+
+  await tx
+    .update(purchases)
+    .set({ providerSubscriptionId: incoming })
+    .where(and(eq(purchases.id, purchaseId), isNull(purchases.providerSubscriptionId)));
+}
+
 export async function POST(req: NextRequest) {
   // Raw bytes are required — HMAC is computed over the exact body AbacatePay sent. Parsing
   // JSON first and re-serializing would change the bytes and the signature would never match.
@@ -132,7 +175,18 @@ export async function POST(req: NextRequest) {
           .where(and(eq(purchases.id, row.id), eq(purchases.status, "pending")))
           .limit(1)
           .for("update");
-        if (stillPending.length === 0) return;
+        if (stillPending.length === 0) {
+          // FIX (the concurrent-delivery hole, which is the EXPECTED case): this used to be a
+          // bare `return`. Both `checkout.completed` and `subscription.completed` are emitted for
+          // ONE first charge, so near-simultaneous delivery is normal, not exotic. The loser's
+          // UNLOCKED pre-select above still saw the `pending` pre-image and so took this branch;
+          // by the time it got the advisory lock the winner had committed `paid`, this re-read
+          // found nothing, and returning here dropped the subscription id while answering 200 —
+          // byte-identical to the original bug, with no redelivery to ever repair it. The race is
+          // symmetric, so whichever event loses must still deposit whatever it carries.
+          await backfillSubscriptionId(tx, row.id, event.providerSubscriptionId);
+          return;
+        }
 
         const period = await nextPeriodFor(tx, row.userId);
         await tx
@@ -163,9 +217,16 @@ export async function POST(req: NextRequest) {
         .where(eq(purchases.providerChargeId, event.providerChargeId))
         .limit(1);
 
-      // Whose money this is. `subscription.completed` carries `externalId`; `checkout.completed`
-      // may not, in which case an already-stored row still tells us the owner.
-      const ownerId = event.externalId ?? known[0]?.userId;
+      // Whose money this is. STORED value first, payload second — deliberately.
+      //
+      // `known[0].userId` is the owner of the row this branch will actually lock and mutate:
+      // ground truth. `event.externalId` is an unverified claim in the payload. If the two ever
+      // diverged, preferring the payload would take the advisory lock on ONE user while updating
+      // ANOTHER user's row, breaking the "one lock per user serializes every write for that user"
+      // invariant the whole concurrency design rests on. No divergence is reachable today, so this
+      // is hardening rather than a live bug. On the insert path `known` is empty, so this degrades
+      // to `externalId` — the only source available when no row exists yet.
+      const ownerId = known[0]?.userId ?? event.externalId;
 
       if (!ownerId) {
         // FIX: this used to fall off the end of the branch and return 200 — a payment was
@@ -186,32 +247,18 @@ export async function POST(req: NextRequest) {
         await db.transaction(async (tx) => {
           await lockUser(tx, ownerId);
           const existing = await tx
-            .select({
-              id: purchases.id,
-              providerSubscriptionId: purchases.providerSubscriptionId,
-            })
+            .select({ id: purchases.id })
             .from(purchases)
             .where(eq(purchases.providerChargeId, event.providerChargeId))
             .limit(1)
             .for("update");
 
           if (existing.length > 0) {
-            const row = existing[0]!;
             // FIX (the checkout.completed-before-subscription.completed hole): the row is already
             // `paid`, so the pending-row branch above could not match it and the subscription id
-            // it carries had nowhere to go. Write it now. See needsSubscriptionIdBackfill — this
-            // ONLY ever fills a NULL, never replaces a stored id. Doing it here means it runs
-            // under the same advisory lock and row lock as every other write to this row, and the
-            // `providerSubscriptionId IS NULL` predicate re-asserts the same condition on the
-            // UPDATE so a concurrent delivery cannot clobber a value it did not see.
-            if (
-              needsSubscriptionIdBackfill(row.providerSubscriptionId, event.providerSubscriptionId)
-            ) {
-              await tx
-                .update(purchases)
-                .set({ providerSubscriptionId: event.providerSubscriptionId! })
-                .where(and(eq(purchases.id, row.id), isNull(purchases.providerSubscriptionId)));
-            }
+            // it carries had nowhere to go. Deposit it through the ONE shared back-fill path,
+            // which re-reads under the lock and carries the `IS NULL` guard on the UPDATE.
+            await backfillSubscriptionId(tx, existing[0]!.id, event.providerSubscriptionId);
             return;
           }
 
