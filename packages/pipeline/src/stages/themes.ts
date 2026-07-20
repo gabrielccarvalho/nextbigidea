@@ -3,6 +3,20 @@
 // would otherwise force a fake connection string into the test environment.
 // Mirrors the dedupe.ts / normalize.ts split from Task 7.
 
+import type { RawPost } from "../types";
+
+function sumMetrics(metrics: Record<string, number>): number {
+  return Object.values(metrics).reduce((total, v) => total + v, 0);
+}
+
+// Selects the highest-signal posts for clusterPosts to consider, bounding the
+// size of its single `enrich` call. Sorts a COPY — never mutates the input,
+// since callers (and their own callers) may still hold a reference to the
+// original ordering.
+export function topByEngagement(posts: RawPost[], limit: number): RawPost[] {
+  return [...posts].sort((a, b) => sumMetrics(b.metrics) - sumMetrics(a.metrics)).slice(0, limit);
+}
+
 export function slugify(title: string): string {
   const slug = title
     .toLowerCase()

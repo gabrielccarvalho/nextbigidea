@@ -43,10 +43,10 @@ export class HaikuClient {
     return new Set(indices.map((i) => posts[i]?.id).filter((x): x is string => !!x));
   }
 
-  async enrich(prompt: string): Promise<string> {
+  async enrich(prompt: string, maxTokens = 2048): Promise<string> {
     const res = await this.client.messages.create({
       model: MODEL,
-      max_tokens: 2048,
+      max_tokens: maxTokens,
       messages: [{ role: "user", content: prompt }],
     });
     if (res.usage) this.track(res.usage);

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { slugify, parseThemes } from "../src/stages/themes";
+import { slugify, parseThemes, topByEngagement } from "../src/stages/themes";
+import type { RawPost } from "../src/types";
+
+function post(id: string, metrics: Record<string, number>): RawPost {
+  return { source: "reddit", sourcePostId: id, url: "u", content: "c", metrics };
+}
 
 describe("slugify", () => {
   it("lowercases, strips punctuation, and hyphenates", () => {
@@ -43,5 +48,37 @@ describe("parseThemes", () => {
 
   it("drops entries whose title is not a string", () => {
     expect(parseThemes('[{"title":123,"postKeys":["reddit:a"]}]')).toEqual([]);
+  });
+});
+
+describe("topByEngagement", () => {
+  it("sorts descending by the sum of each post's metrics values", () => {
+    const posts = [
+      post("low", { upvotes: 2, comments: 1 }),
+      post("high", { upvotes: 50, comments: 10 }),
+      post("mid", { upvotes: 10, comments: 5 }),
+    ];
+    const result = topByEngagement(posts, 3);
+    expect(result.map((p) => p.sourcePostId)).toEqual(["high", "mid", "low"]);
+  });
+
+  it("respects the limit", () => {
+    const posts = [post("a", { x: 3 }), post("b", { x: 1 }), post("c", { x: 2 })];
+    const result = topByEngagement(posts, 2);
+    expect(result).toHaveLength(2);
+    expect(result.map((p) => p.sourcePostId)).toEqual(["a", "c"]);
+  });
+
+  it("treats a post with an empty metrics object as zero engagement", () => {
+    const posts = [post("empty", {}), post("some", { x: 1 })];
+    const result = topByEngagement(posts, 2);
+    expect(result.map((p) => p.sourcePostId)).toEqual(["some", "empty"]);
+  });
+
+  it("does not mutate the input array", () => {
+    const posts = [post("a", { x: 1 }), post("b", { x: 5 })];
+    const original = [...posts];
+    topByEngagement(posts, 2);
+    expect(posts).toEqual(original);
   });
 });

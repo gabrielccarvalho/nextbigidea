@@ -1,9 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { keywordPrefilter } from "../src/stages/relevance";
+import { filterRelevant, keywordPrefilter } from "../src/stages/relevance";
 import type { RawPost } from "../src/types";
+// Type-only import — anthropic.ts pulls in the Anthropic SDK but not
+// `@workspace/db`, so this stays safe to load without DATABASE_URL set.
+import type { HaikuClient } from "../src/anthropic";
 
 function post(content: string, title = ""): RawPost {
   return { source: "reddit", sourcePostId: Math.random().toString(), url: "u", title, content, metrics: {} };
+}
+
+// Minimal fake satisfying only the method filterRelevant actually calls.
+function fakeClient(
+  classifyDemand: (posts: { id: string; text: string }[]) => Set<string> | Promise<Set<string>>,
+): HaikuClient {
+  return { classifyDemand } as unknown as HaikuClient;
+}
+
+function wishPost(i: number): RawPost {
+  return post(`I wish there was a tool for case ${i}`);
 }
 
 describe("keywordPrefilter", () => {
@@ -48,5 +62,67 @@ describe("keywordPrefilter", () => {
       post("Here's how I built my SaaS in a weekend"),
     ]);
     expect(kept).toEqual([]);
+  });
+});
+
+describe("filterRelevant", () => {
+  it("batches classification calls in groups of 100 and accumulates results across batches", async () => {
+    const posts = Array.from({ length: 250 }, (_, i) => wishPost(i));
+    const batchSizes: number[] = [];
+    const client = fakeClient((batch) => {
+      batchSizes.push(batch.length);
+      return new Set(batch.map((p) => p.id)); // mark every post in the batch relevant
+    });
+
+    const result = await filterRelevant(posts, client);
+
+    expect(batchSizes).toEqual([100, 100, 50]);
+    expect(result).toHaveLength(250);
+  });
+
+  it("stops issuing batches once shouldContinue returns false, returning partial results (not throwing)", async () => {
+    const posts = Array.from({ length: 250 }, (_, i) => wishPost(i));
+    let batchCalls = 0;
+    const client = fakeClient((batch) => {
+      batchCalls++;
+      return new Set(batch.map((p) => p.id));
+    });
+    let checks = 0;
+    const shouldContinue = () => {
+      checks++;
+      return checks <= 1; // allow only the first batch through
+    };
+
+    const result = await filterRelevant(posts, client, shouldContinue);
+
+    expect(batchCalls).toBe(1);
+    expect(result).toHaveLength(100);
+  });
+
+  it("never calls classifyDemand when shouldContinue is already false", async () => {
+    const posts = [wishPost(0)];
+    let batchCalls = 0;
+    const client = fakeClient((batch) => {
+      batchCalls++;
+      return new Set(batch.map((p) => p.id));
+    });
+
+    const result = await filterRelevant(posts, client, () => false);
+
+    expect(batchCalls).toBe(0);
+    expect(result).toEqual([]);
+  });
+
+  it("returns [] without calling the client when nothing survives the prefilter", async () => {
+    let batchCalls = 0;
+    const client = fakeClient((batch) => {
+      batchCalls++;
+      return new Set(batch.map((p) => p.id));
+    });
+
+    const result = await filterRelevant([post("great weather today")], client);
+
+    expect(batchCalls).toBe(0);
+    expect(result).toEqual([]);
   });
 });
