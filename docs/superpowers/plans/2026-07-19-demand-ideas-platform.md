@@ -216,19 +216,27 @@ export const ideaEvidence = pgTable(
 
 // --- Payments ---
 
-export const purchases = pgTable("purchases", {
-  id: serial("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  provider: text("provider").notNull(), // abacatepay
-  providerChargeId: text("provider_charge_id").notNull(),
-  amountCents: integer("amount_cents").notNull(),
-  currency: text("currency").notNull().default("BRL"),
-  status: text("status").notNull().default("pending"), // pending | paid | refunded
-  paidAt: timestamp("paid_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const purchases = pgTable(
+  "purchases",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(), // abacatepay
+    providerChargeId: text("provider_charge_id").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    currency: text("currency").notNull().default("BRL"),
+    status: text("status").notNull().default("pending"), // pending | paid | refunded
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  // Payment providers RETRY webhooks. Without this constraint, two concurrent
+  // deliveries of the same charge can both pass a check-then-insert and write
+  // duplicate paid rows. The unique index makes idempotency a database
+  // guarantee rather than a race the application hopes to win.
+  (t) => [uniqueIndex("purchases_provider_charge_uq").on(t.providerChargeId)],
+);
 
 // --- Better Auth core tables ---
 // Field names/types follow Better Auth's expected schema. Do not rename columns.
@@ -2606,7 +2614,17 @@ git commit -m "feat(web): add Better Auth with Google OAuth and Resend magic lin
   - `abacatepay.ts`: `export class AbacatePayProvider implements PaymentProvider` + `export function verifyHmac(rawBody: string, signature: string | null, secret: string): boolean` (pure), `export function parseAbacateEvent(body: unknown): PaymentEvent | null` (pure).
   - `index.ts`: `export function getPaymentProvider(): PaymentProvider` (returns AbacatePay).
 
-> **AbacatePay v2 facts** (from docs): base `https://api.abacatepay.com/v2`, `Authorization: Bearer <key>`, create checkout `POST /checkouts/create` returning `{ data: { url, id }, success, error }`, webhooks signed via HMAC using the configured `secret`, paid event type contains `checkout.completed`. Response envelope is `{ data, success, error }`. Confirm exact webhook payload/signature header names against current docs when implementing; keep parsing tolerant.
+> ⚠️ **The AbacatePay details written in this task's code blocks below are WRONG.** They were drafted from partially-verified docs and later corrected against AbacatePay's live documentation during implementation (verified twice — by the implementer and independently by review). The shipped code is authoritative; these blocks are kept only as a record. The actual API:
+>
+> | This plan said | AbacatePay actually does |
+> |---|---|
+> | header `x-abacatepay-signature` | `X-Webhook-Signature` |
+> | HMAC digest in hex | **base64** |
+> | HMAC key is a per-merchant secret | **a fixed PUBLIC constant shared by all merchants** |
+> | charge id at `data.id` | nested under `data.checkout.id` / `data.transparent.id` |
+> | inline `products:[{name,price}]` | `items:[{id,quantity}]` referencing a pre-created Product |
+>
+> **The security consequence is the important part:** because the HMAC key is public, HMAC verification is NOT an authentication boundary — anyone reading the docs could forge a valid signature. The real per-account gate is a `?webhookSecret=` query parameter on the registered webhook URL, which this plan omitted entirely. Had the header guess been right, this design would have let anyone grant themselves lifetime access for free; as written it would instead have rejected every genuine webhook. Both failures are silent.
 
 - [ ] **Step 1: Add vitest to apps/web**
 
