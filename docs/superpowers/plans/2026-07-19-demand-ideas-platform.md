@@ -3159,7 +3159,8 @@ Confirm the params shape (`params` may be a Promise in this Next.js version) and
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getPublishedIdeaBySlug, getEvidenceForIdea } from "@workspace/db";
-import { getViewerAccess } from "@/lib/access";
+import { getViewerAccess } from "@/lib/viewer-access";
+import { toTeaserIdea } from "@/lib/teaser";
 import { PaywallCta } from "@/components/paywall-cta";
 
 export default async function IdeaDetailPage({
