@@ -10,37 +10,60 @@ export function Dissection() {
   const stepRefs = useRef<(HTMLLIElement | null)[]>([]);
 
   useEffect(() => {
-    // Reduced motion gets every passage at full opacity and no highlight
-    // tracking — the composed state, not a mid-animation one.
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    // The sticky/tracking layout only exists at lg and up; below that the
-    // section is a plain stack and a highlight would be meaningless.
-    if (!window.matchMedia("(min-width: 1024px)").matches) return;
+    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const widthQuery = window.matchMedia("(min-width: 1024px)");
 
-    const nodes = stepRefs.current.filter((n): n is HTMLLIElement => n !== null);
-    if (nodes.length === 0) return;
+    let observer: IntersectionObserver | null = null;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        // Pick the entry nearest the vertical middle of the viewport so the
-        // highlight follows reading position rather than whichever element
-        // happened to fire last.
-        const mid = window.innerHeight / 2;
-        let best: { key: SpecimenRegion; dist: number } | null = null;
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          const box = entry.boundingClientRect;
-          const dist = Math.abs(box.top + box.height / 2 - mid);
-          const key = (entry.target as HTMLElement).dataset.region as SpecimenRegion;
-          if (!best || dist < best.dist) best = { key, dist };
-        }
-        if (best) setActive(best.key);
-      },
-      { rootMargin: "-35% 0px -35% 0px", threshold: 0 },
-    );
+    const teardown = () => {
+      observer?.disconnect();
+      observer = null;
+      // Clearing the highlight is the whole point: a stale `active` would leave
+      // passages at opacity-30 and card regions dimmed in a stacked layout with
+      // nothing pinned to explain why.
+      setActive(null);
+    };
 
-    nodes.forEach((n) => observer.observe(n));
-    return () => observer.disconnect();
+    const sync = () => {
+      teardown();
+      // Reduced motion and narrow viewports both get the composed state: every
+      // passage lit, card fully readable, no scroll tracking.
+      if (motionQuery.matches || !widthQuery.matches) return;
+
+      const nodes = stepRefs.current.filter((n): n is HTMLLIElement => n !== null);
+      if (nodes.length === 0) return;
+
+      observer = new IntersectionObserver(
+        (entries) => {
+          // Pick the entry nearest the vertical middle of the viewport so the
+          // highlight follows reading position rather than whichever element
+          // happened to fire last.
+          const mid = window.innerHeight / 2;
+          let best: { key: SpecimenRegion; dist: number } | null = null;
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            const box = entry.boundingClientRect;
+            const dist = Math.abs(box.top + box.height / 2 - mid);
+            const key = (entry.target as HTMLElement).dataset.region as SpecimenRegion;
+            if (!best || dist < best.dist) best = { key, dist };
+          }
+          if (best) setActive(best.key);
+        },
+        { rootMargin: "-35% 0px -35% 0px", threshold: 0 },
+      );
+
+      nodes.forEach((n) => observer?.observe(n));
+    };
+
+    sync();
+    motionQuery.addEventListener("change", sync);
+    widthQuery.addEventListener("change", sync);
+
+    return () => {
+      motionQuery.removeEventListener("change", sync);
+      widthQuery.removeEventListener("change", sync);
+      teardown();
+    };
   }, []);
 
   return (
