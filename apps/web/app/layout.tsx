@@ -1,15 +1,21 @@
-import { Geist, Geist_Mono, Figtree } from "next/font/google"
+import type { Metadata } from "next"
+import { Geist_Mono, Figtree } from "next/font/google"
 
 import "@workspace/ui/globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
-import { cn } from "@workspace/ui/lib/utils";
+import { cn } from "@workspace/ui/lib/utils"
 
-const figtree = Figtree({subsets:['latin'],variable:'--font-sans'})
+const figtree = Figtree({ subsets: ["latin"], variable: "--font-sans" })
 
 const fontMono = Geist_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
 })
+
+export const metadata: Metadata = {
+  title: "NextBigThing",
+  description:
+    "SaaS ideas sourced from people who are already asking for them, scored and linked back to the posts that prove demand.",
+}
 
 export default function RootLayout({
   children,
@@ -19,12 +25,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      suppressHydrationWarning
-      className={cn("antialiased", fontMono.variable, "font-sans", figtree.variable)}
+      className={cn("dark antialiased", fontMono.variable, "font-sans", figtree.variable)}
     >
-      <body>
-        <ThemeProvider>{children}</ThemeProvider>
-      </body>
+      <body>{children}</body>
     </html>
   )
 }
