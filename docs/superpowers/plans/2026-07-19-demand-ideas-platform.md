@@ -1429,6 +1429,36 @@ describe("keywordPrefilter", () => {
   it("is case-insensitive", () => {
     expect(keywordPrefilter([post("I WISH THERE WAS a way to do X")])).toHaveLength(1);
   });
+
+  // Every signal pattern needs at least one example. Without this, a typo in a
+  // regex silently creates a permanent blind spot: the paid classifier never
+  // sees those posts, and nothing fails.
+  it.each([
+    ["wish", "I wish there was a tool for this"],
+    ["wish-somebody", "I wish somebody would build this"],
+    ["is-there", "Is there a platform that handles this?"],
+    ["does-anyone-know", "Does anyone know of an alternative?"],
+    ["looking-for", "Looking for a tool that syncs these"],
+    ["i-need", "I need an app that tracks this"],
+    ["would-pay", "I would pay for this"],
+    ["contracted-pay", "I'd pay for a tool that fixes this"],
+    ["happily-pay", "Would happily pay someone to solve this"],
+    ["no-good-tool", "There's no good tool for reconciling these"],
+    ["somebody-should", "Somebody should build a service for this"],
+    ["any-recommendations", "Any recommendations? Need something for invoicing"],
+    ["recommendations-for", "Recommendations for a tool that does exports?"],
+  ])("matches the %s phrasing", (_label, text) => {
+    expect(keywordPrefilter([post(text)])).toHaveLength(1);
+  });
+
+  it("rejects ordinary chatter that mentions no unmet need", () => {
+    const kept = keywordPrefilter([
+      post("Just shipped v2 of my app, feedback welcome"),
+      post("Great tool, been using it for years"),
+      post("Here's how I built my SaaS in a weekend"),
+    ]);
+    expect(kept).toEqual([]);
+  });
 });
 ```
 
@@ -1504,13 +1534,27 @@ export class HaikuClient {
 import type { RawPost } from "../types";
 import type { HaikuClient } from "../anthropic";
 
+// This prefilter is the ONLY gate before the paid classifier. A phrasing that
+// matches nothing here is never evaluated at all, so gaps here are permanent
+// blind spots in the product's demand detection — worse than a few extra
+// Haiku calls, which the spend cap already bounds.
 const SIGNAL_PATTERNS: RegExp[] = [
-  /\bi wish (there was|there were|i had|someone would)\b/i,
-  /\bis there (a|an|any) (tool|app|service|software|way)\b/i,
-  /\blooking for (a|an|some) (tool|app|service|software)\b/i,
-  /\bdoes (anyone|anything) (know|exist)\b.*\b(tool|app|automat)/i,
-  /\bwould (pay|happily pay|love)\b.*\b(tool|app|solve|fix)/i,
-  /\bany recommendations? for\b.*\b(tool|app|software)/i,
+  // Explicit wishes
+  /\bi wish (there was|there were|i had|someone would|somebody would)\b/i,
+  // Existence questions
+  /\bis there (a|an|any) (tool|app|service|software|platform|way)\b/i,
+  /\bdoes (anyone|anybody) know of (a|an|any)\b/i,
+  // Active search
+  /\blooking for (a|an|some)\b.*\b(tool|app|service|software|platform)\b/i,
+  /\bi need (a|an|some)\b.*\b(tool|app|service|software|platform)\b/i,
+  // Willingness to pay — the strongest signal. Covers contractions.
+  /\b(would pay|i'd pay|i would pay|happily pay|pay good money)\b/i,
+  // Gap statements
+  /\bthere(?:'s| is| are)? no (good |decent |real )?(tool|app|service|software)\b/i,
+  /\b(somebody|someone) should (build|make|create)\b/i,
+  // Recommendation requests, word-order tolerant
+  /\bany (tool|app|software|service)? ?recommendations?\b/i,
+  /\brecommendations? for\b.*\b(tool|app|service|software)\b/i,
 ];
 
 export function keywordPrefilter(posts: RawPost[]): RawPost[] {
