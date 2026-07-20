@@ -13,8 +13,14 @@ export function PaywallCta({ authenticated }: { authenticated: boolean }) {
       return;
     }
     // The route answers 200 with `{ alreadyActive: true }` when a subscription is already
-    // running. Reading `url` off that shape used to navigate to `undefined`.
-    const body = (await res.json()) as { url?: string; alreadyActive?: boolean };
+    // running, or `{ pendingCheckout: true }` when one was started recently and is still in
+    // flight. Reading `url` off either shape used to navigate to `undefined` — both fall
+    // through to the same "go to /account" branch below instead.
+    const body = (await res.json()) as {
+      url?: string;
+      alreadyActive?: boolean;
+      pendingCheckout?: boolean;
+    };
     if (body.url) {
       window.location.href = body.url;
       return;

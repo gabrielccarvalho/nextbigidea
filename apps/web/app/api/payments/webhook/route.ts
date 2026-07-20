@@ -6,6 +6,7 @@ import { getPaymentProvider } from "@/lib/payments";
 import { PRICE_CENTS } from "@/lib/payments/provider";
 import { computeNextPeriod, computeRefundStackShift } from "@/lib/billing-period";
 import { needsSubscriptionIdBackfill } from "@/lib/payments/subscription-backfill";
+import { notifyPaymentFailure } from "@/lib/payments/alert";
 
 /** The drizzle transaction handle, derived so it stays correct if the client type changes. */
 type TransactionalDb = ReturnType<typeof getTransactionalDb>;
@@ -249,6 +250,10 @@ export async function POST(req: NextRequest) {
           `[payments] paid webhook for charge ${event.providerChargeId} has no pending row, no ` +
             `existing row and no externalId; NOTHING was recorded for this payment`,
         );
+        await notifyPaymentFailure({
+          kind: "unresolvable_paid_event",
+          detail: `charge ${event.providerChargeId}`,
+        });
         return NextResponse.json({ error: "unresolvable_paid_event" }, { status: 503 });
       }
 
@@ -337,6 +342,10 @@ export async function POST(req: NextRequest) {
           `[payments] paid webhook for charge ${event.providerChargeId} found its row still ` +
             `\`pending\`; deferring to a retry instead of granting access early`,
         );
+        await notifyPaymentFailure({
+          kind: "row_still_pending",
+          detail: `charge ${event.providerChargeId}`,
+        });
         return NextResponse.json({ error: "row_still_pending" }, { status: 503 });
       }
     }
@@ -358,6 +367,10 @@ export async function POST(req: NextRequest) {
       // told AbacatePay the renewal was handled and it never came back, permanently losing a
       // charge the customer already paid. A 5xx gets it redelivered, and the retry succeeds once
       // the `subscription.completed` that creates the owning row has landed.
+      await notifyPaymentFailure({
+        kind: "owner_not_found",
+        detail: `subscription ${event.providerSubscriptionId}, charge ${event.providerChargeId}`,
+      });
       return NextResponse.json({ error: "owner_not_found" }, { status: 503 });
     }
     const userId = owner[0]!.userId;
