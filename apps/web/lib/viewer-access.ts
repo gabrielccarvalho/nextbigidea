@@ -13,15 +13,18 @@ export async function getViewerAccess(): Promise<{
   userId: string | null;
   hasFullAccess: boolean;
   periodEnd: Date | null;
+  cancelledAt: Date | null;
 }> {
   const session = await auth.api.getSession({ headers: await headers() });
   const userId = session?.user?.id ?? null;
-  if (!userId) return { userId: null, hasFullAccess: false, periodEnd: null };
+  if (!userId) return { userId: null, hasFullAccess: false, periodEnd: null, cancelledAt: null };
   // Furthest period_end wins: renewals stack, so the newest row is not necessarily the
   // one that expires last. `isNotNull` enforces the "status = 'paid' implies period set"
-  // invariant at read time rather than trusting it.
+  // invariant at read time rather than trusting it. cancelledAt is read off that SAME row —
+  // the one whose period_end actually gates access — so the UI reflects the cancellation
+  // state of the period the user is currently living in.
   const rows = await db
-    .select({ periodEnd: purchases.periodEnd })
+    .select({ periodEnd: purchases.periodEnd, cancelledAt: purchases.cancelledAt })
     .from(purchases)
     .where(
       and(
@@ -32,5 +35,9 @@ export async function getViewerAccess(): Promise<{
     )
     .orderBy(desc(purchases.periodEnd))
     .limit(1);
-  return { userId, ...computeAccess(rows[0]?.periodEnd ?? null, new Date()) };
+  return {
+    userId,
+    ...computeAccess(rows[0]?.periodEnd ?? null, new Date()),
+    cancelledAt: rows[0]?.cancelledAt ?? null,
+  };
 }

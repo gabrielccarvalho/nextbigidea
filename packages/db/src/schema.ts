@@ -108,6 +108,12 @@ export const purchases = pgTable(
     periodEnd: timestamp("period_end", { withTimezone: true }),
     paidAt: timestamp("paid_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // Set when AbacatePay confirms the subscription was cancelled. Access is NOT revoked —
+    // the customer keeps what they paid for through period_end. This exists so the account
+    // page can say "will not renew" instead of "active", and so the checkout guard knows
+    // to let them re-subscribe before their current period ends.
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelledDueTo: text("cancelled_due_to"),
   },
   // Payment providers RETRY webhooks. Without this constraint, two concurrent
   // deliveries of the same charge can both pass a check-then-insert and write

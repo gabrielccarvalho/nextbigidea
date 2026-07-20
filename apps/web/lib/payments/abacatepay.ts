@@ -200,6 +200,27 @@ export class AbacatePayProvider implements PaymentProvider {
     return { url: json.data.url, providerChargeId: json.data.id };
   }
 
+  /**
+   * POST /subscriptions/cancel. Immediate and irreversible: future charges stop, nothing is
+   * refunded, and there is no "un-cancel" — resuming means starting a brand new subscription.
+   * Docs: https://docs.abacatepay.com/pages/subscriptions/reference
+   */
+  async cancelSubscription(providerSubscriptionId: string): Promise<boolean> {
+    const res = await fetch(`${BASE_URL}/subscriptions/cancel`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({ id: providerSubscriptionId }),
+    });
+    const json = (await res.json()) as { data?: unknown; error?: unknown };
+    if (!res.ok || !json.data) {
+      throw new Error(`abacatepay subscription cancel failed: ${JSON.stringify(json.error ?? json)}`);
+    }
+    return true;
+  }
+
   verifyAndParseWebhook(
     rawBody: string,
     signature: string | null,

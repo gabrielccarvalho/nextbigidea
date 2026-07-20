@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db, purchases } from "@workspace/db";
 import { getPaymentProvider } from "@/lib/payments";
@@ -20,9 +20,12 @@ export async function POST() {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
 
-  // A second subscription is illegitimate only while access is STILL ACTIVE. Once the period
-  // has lapsed the user must be able to subscribe again — the old lifetime guard rejected
-  // every charge forever, which would have made re-subscribing impossible.
+  // A second subscription is illegitimate only while access is STILL ACTIVE AND NOT
+  // CANCELLED. Once the period has lapsed the user must be able to subscribe again — the
+  // old lifetime guard rejected every charge forever, which would have made re-subscribing
+  // impossible. `cancelledAt IS NOT NULL` means AbacatePay already stopped the recurring
+  // charges on the old subscription (irreversibly — there is no "un-cancel"), so a new
+  // checkout here starts a brand new subscription rather than colliding with a live one.
   const active = await db
     .select({ periodEnd: purchases.periodEnd })
     .from(purchases)
@@ -31,6 +34,7 @@ export async function POST() {
         eq(purchases.userId, session.user.id),
         eq(purchases.status, "paid"),
         gt(purchases.periodEnd, new Date()),
+        isNull(purchases.cancelledAt),
       ),
     )
     .limit(1);

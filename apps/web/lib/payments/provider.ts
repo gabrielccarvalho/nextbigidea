@@ -49,4 +49,10 @@ export interface PaymentProvider {
     signature: string | null,
     urlSecret?: string | null,
   ): PaymentEvent | null;
+  /**
+   * Cancels a recurring subscription at the provider. Immediate and irreversible for
+   * AbacatePay: future charges stop, nothing is refunded, and the customer keeps access
+   * through the period they already paid for. Returns true when the provider confirms.
+   */
+  cancelSubscription(providerSubscriptionId: string): Promise<boolean>;
 }

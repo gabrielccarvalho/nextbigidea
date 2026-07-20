@@ -504,12 +504,49 @@ export async function POST(req: NextRequest) {
   } else if (event.type === "cancelled") {
     // Deliberately no access change: the customer paid through period_end and keeps it.
     // AbacatePay cancellation is immediate and stops future charges, so access lapses on
-    // its own when the period runs out.
-    console.info(
-      `[payments] subscription ${event.providerSubscriptionId} cancelled` +
-        (event.cancelledDueTo ? ` (${event.cancelledDueTo})` : "") +
-        "; access retained until period_end",
-    );
+    // its own when the period runs out. This branch writes ONLY cancelled_at and
+    // cancelled_due_to — ASSERTION: it must NEVER set status, period_start or period_end.
+    // Cancelling is not revoking.
+    const owner = await db
+      .select({ userId: purchases.userId })
+      .from(purchases)
+      .where(eq(purchases.providerSubscriptionId, event.providerSubscriptionId))
+      .limit(1);
+    if (owner.length === 0) {
+      // Same reasoning as the `renewed`/`refunded` branches above: webhook delivery is
+      // neither ordered nor guaranteed, so "the owning row hasn't been written yet" (e.g.
+      // `subscription.completed` hasn't landed) is recoverable. A 5xx gets this redelivered
+      // instead of silently dropping the cancellation on the floor.
+      console.error(
+        `[payments] cancellation for subscription ${event.providerSubscriptionId} matched no ` +
+          `purchase row; cancellation was NOT recorded`,
+      );
+      await notifyPaymentFailure({
+        kind: "cancel_target_not_found",
+        detail: `subscription ${event.providerSubscriptionId}`,
+      });
+      return NextResponse.json({ error: "cancel_target_not_found" }, { status: 503 });
+    }
+    const userId = owner[0]!.userId;
+    await db.transaction(async (tx) => {
+      await lockUser(tx, userId);
+      // Idempotent: `isNull(cancelledAt)` means a redelivered `cancelled` event matches zero
+      // rows the second time and is a true no-op. Applied to ALL of this subscription's rows
+      // (a stacked renewal creates a new row per period), so none of them are left looking
+      // un-cancelled.
+      await tx
+        .update(purchases)
+        .set({
+          cancelledAt: now,
+          cancelledDueTo: event.cancelledDueTo ?? null,
+        })
+        .where(
+          and(
+            eq(purchases.providerSubscriptionId, event.providerSubscriptionId),
+            isNull(purchases.cancelledAt),
+          ),
+        );
+    });
   } else if (event.type === "payment_failed") {
     // No access change while AbacatePay retries. If every retry fails it auto-cancels, and
     // the branch above handles that.
