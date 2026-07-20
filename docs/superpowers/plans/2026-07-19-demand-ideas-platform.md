@@ -567,6 +567,21 @@ export function enabledAdapters(adapters: SourceAdapter[], env: PipelineEnv): So
   return adapters.filter((a) => a.enabled(env));
 }
 
+// The spend cap gates every paid stage via `spent < cap` comparisons. A NaN cap
+// makes every one of those false, so the run silently does NO paid work and
+// publishes zero ideas while still reporting success. Fail loudly at startup
+// instead of shipping a quietly-dead pipeline.
+export function parseUsdCap(raw: string | undefined): number {
+  if (raw === undefined || raw.trim() === "") return 5;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new Error(
+      `PIPELINE_MONTHLY_USD_CAP must be a positive number, got ${JSON.stringify(raw)}`,
+    );
+  }
+  return n;
+}
+
 export function loadEnv(): PipelineEnv {
   const req = (k: string): string => {
     const v = process.env[k];
@@ -577,7 +592,7 @@ export function loadEnv(): PipelineEnv {
   return {
     databaseUrl: req("DATABASE_URL"),
     anthropicApiKey: req("ANTHROPIC_API_KEY"),
-    monthlyUsdCap: Number(process.env.PIPELINE_MONTHLY_USD_CAP ?? "5"),
+    monthlyUsdCap: parseUsdCap(process.env.PIPELINE_MONTHLY_USD_CAP),
     sources: {
       reddit: flag("SOURCE_REDDIT"),
       hackernews: flag("SOURCE_HACKERNEWS"),
@@ -1757,7 +1772,40 @@ git commit -m "feat(pipeline): add clustering stage with pg_trgm idea matching"
   - `report.ts`: `class PipelineRunReport { addSource(name, fetched, failed?, error?); toStats(): Record<string, unknown>; get status(): "success"|"partial"|"failed"; writeGithubSummary(): void }`.
   - `run.ts`: `export async function runPipeline(): Promise<PipelineRunReport>`.
 
-- [ ] **Step 1: Read the modified-Next.js note is not needed here (pipeline is plain Node). Proceed.**
+- [ ] **Step 1: Harden the spend-cap parsing (test first)**
+
+`config.ts` currently reads the cap with a bare `Number(...)`, which yields `NaN` for a malformed value. Every paid stage is gated on `spent < cap`, and all such comparisons are false against `NaN` — so a typo'd cap makes the run skip all paid work and publish zero ideas while still reporting success. It fails closed rather than overspending, but silently.
+
+Add to `packages/pipeline/test/config.test.ts`:
+```ts
+import { parseUsdCap } from "../src/config";
+
+describe("parseUsdCap", () => {
+  it("defaults to 5 when unset or blank", () => {
+    expect(parseUsdCap(undefined)).toBe(5);
+    expect(parseUsdCap("")).toBe(5);
+  });
+
+  it("parses a valid positive number", () => {
+    expect(parseUsdCap("12.5")).toBe(12.5);
+  });
+
+  // A NaN cap would make every `spent < cap` guard false, silently disabling
+  // all paid stages instead of capping them.
+  it("throws on a non-numeric value rather than yielding NaN", () => {
+    expect(() => parseUsdCap("five")).toThrow(/positive number/);
+  });
+
+  it("throws on zero or negative", () => {
+    expect(() => parseUsdCap("0")).toThrow(/positive number/);
+    expect(() => parseUsdCap("-3")).toThrow(/positive number/);
+  });
+});
+```
+
+Run it (RED), then add `parseUsdCap` to `config.ts` exactly as shown in the Task 2 section above and switch `loadEnv` to use it. Run again (GREEN).
+
+- [ ] **Step 1b: The pipeline is plain Node — no modified-Next.js docs needed here. Proceed.**
 
 - [ ] **Step 2: Write the failing enrich test**
 
