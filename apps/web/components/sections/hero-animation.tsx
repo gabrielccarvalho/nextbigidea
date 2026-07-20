@@ -77,10 +77,16 @@ export function HeroAnimation() {
     // effect, never during render — reading it in the render body would
     // desync the server-rendered markup from the client's first paint and
     // trigger a hydration mismatch.
+    // The stage spans the page width, so the spawn radius is derived from the
+    // stage rather than clamped to a floor. Cards must still be fully visible at
+    // the readable phase (offset 0.28, where they sit at 0.8x the radius), so the
+    // multipliers stay under (half-extent - halfCard) / 0.8.
     const isNarrow = window.innerWidth < 640;
     const posts = isNarrow ? SAMPLE_POSTS.slice(0, 5) : SAMPLE_POSTS;
-    const radiusXMultiplier = isNarrow ? 0.45 : 0.6;
-    const radiusYMultiplier = isNarrow ? 0.5 : 0.7;
+    const radiusXMultiplier = isNarrow ? 0.42 : 0.46;
+    const radiusYMultiplier = isNarrow ? 0.44 : 0.46;
+    const radiusXFloor = isNarrow ? 150 : 320;
+    const radiusYFloor = isNarrow ? 150 : 210;
 
     const timers: ReturnType<typeof setTimeout>[] = [];
     const spawned: HTMLElement[] = [];
@@ -94,8 +100,8 @@ export function HeroAnimation() {
     const spawnPost = (text: string, i: number, total: number) => {
       const source = SOURCES[i % SOURCES.length]!;
       const angle = (i / total) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
-      const rx = Math.max(stage.clientWidth * radiusXMultiplier, 300) + Math.random() * 70;
-      const ry = Math.max(stage.clientHeight * radiusYMultiplier, 220) + Math.random() * 50;
+      const rx = Math.max(stage.clientWidth * radiusXMultiplier, radiusXFloor) + Math.random() * 70;
+      const ry = Math.max(stage.clientHeight * radiusYMultiplier, radiusYFloor) + Math.random() * 50;
       const x0 = Math.cos(angle) * rx;
       const y0 = Math.sin(angle) * ry;
       const rot = (Math.random() - 0.5) * 16;
@@ -235,7 +241,7 @@ export function HeroAnimation() {
     <div
       ref={stageRef}
       aria-hidden="true"
-      className="relative h-[380px] overflow-hidden rounded-xl border border-border sm:h-[440px]"
+      className="relative h-[420px] overflow-hidden rounded-xl border border-border sm:h-[520px] lg:h-[580px]"
       style={{
         background:
           "radial-gradient(circle at 50% 50%, color-mix(in oklch, var(--primary) 12%, var(--background)) 0%, var(--background) 62%)",
@@ -257,7 +263,7 @@ export function HeroAnimation() {
 
       <div
         ref={cardRef}
-        className="absolute left-1/2 top-1/2 -ml-[135px] -mt-[62px] w-[270px] rounded-xl border border-border bg-card p-4 opacity-0 shadow-2xl will-change-transform"
+        className="absolute left-1/2 top-1/2 -ml-[160px] -mt-[72px] w-[320px] rounded-xl border border-border bg-card p-5 opacity-0 shadow-2xl will-change-transform"
       >
         <div className="flex items-baseline justify-between gap-3">
           <span className="text-sm font-bold tracking-tight">{idea.title}</span>

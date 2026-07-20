@@ -284,4 +284,7 @@ export const SAMPLE_POSTS: readonly string[] = [
   "context is lost every time someone leaves",
   "onboarding a new dev takes three weeks",
   "our wiki is a graveyard",
+  "we hacked something together in a weekend and still use it",
+  "every tool does ten things, I need one",
+  "is there a simple version of this that just works?",
 ] as const;
