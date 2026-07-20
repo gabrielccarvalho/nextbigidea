@@ -3308,6 +3308,16 @@ describe("isAdmin", () => {
   it("tolerates spaces around ids", () => {
     expect(isAdmin("u2", "u1, u2 , u3")).toBe(true);
   });
+
+  // THE case that actually exercises both guards together. Neither the null-id
+  // test nor the empty-allowlist test above can catch a removed guard on its
+  // own: ["u1"].includes(null) and [""].includes("u1") are both false anyway.
+  // But with BOTH guards gone, "" splits to [""] and [""].includes("") is TRUE —
+  // an unconfigured deploy would grant admin to an empty user id. This is the
+  // only assertion here that fails if either guard is deleted.
+  it("denies an empty user id against an empty allowlist", () => {
+    expect(isAdmin("", "")).toBe(false);
+  });
 });
 ```
 
@@ -3353,7 +3363,7 @@ import { requireAdmin } from "@/lib/admin";
 
 export async function publishIdea(formData: FormData) {
   await requireAdmin();
-  const id = Number(formData.get("id"));
+  const id = parseIdeaId(formData);
   await db
     .update(ideas)
     .set({ status: "published", publishedAt: new Date() })
@@ -3364,7 +3374,7 @@ export async function publishIdea(formData: FormData) {
 
 export async function unpublishIdea(formData: FormData) {
   await requireAdmin();
-  const id = Number(formData.get("id"));
+  const id = parseIdeaId(formData);
   await db.update(ideas).set({ status: "draft" }).where(eq(ideas.id, id));
   revalidatePath("/admin");
   revalidatePath("/ideas");
@@ -3372,7 +3382,7 @@ export async function unpublishIdea(formData: FormData) {
 
 export async function setFreeIdea(formData: FormData) {
   await requireAdmin();
-  const id = Number(formData.get("id"));
+  const id = parseIdeaId(formData);
   const isFree = formData.get("isFree") === "true";
   await db.update(ideas).set({ isFree }).where(eq(ideas.id, id));
   revalidatePath("/admin");
