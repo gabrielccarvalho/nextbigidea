@@ -3,8 +3,7 @@ import type { NextRequest } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db, purchases } from "@workspace/db";
 import { getPaymentProvider } from "@/lib/payments";
-
-const PRICE_CENTS = 11000; // R$110 ≈ $20 lifetime access
+import { PRICE_CENTS } from "@/lib/payments/provider";
 
 export async function POST(req: NextRequest) {
   // Raw bytes are required — HMAC is computed over the exact body AbacatePay sent. Parsing
@@ -22,7 +21,8 @@ export async function POST(req: NextRequest) {
   const signature = req.headers.get("x-webhook-signature");
   const urlSecret = req.nextUrl.searchParams.get("webhookSecret");
 
-  const event = getPaymentProvider().verifyAndParseWebhook(rawBody, signature, urlSecret);
+  const provider = getPaymentProvider();
+  const event = provider.verifyAndParseWebhook(rawBody, signature, urlSecret);
   if (!event) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
@@ -48,15 +48,21 @@ export async function POST(req: NextRequest) {
         .where(eq(purchases.providerChargeId, event.providerChargeId))
         .limit(1);
       if (existing.length === 0) {
-        await db.insert(purchases).values({
-          userId: event.externalId,
-          provider: "abacatepay",
-          providerChargeId: event.providerChargeId,
-          amountCents: PRICE_CENTS,
-          currency: "BRL",
-          status: "paid",
-          paidAt: new Date(),
-        });
+        // onConflictDoNothing: purchases_provider_charge_uq makes idempotency a database
+        // guarantee — a concurrent retry that loses this race is a no-op, not a 500 that
+        // makes the provider retry forever.
+        await db
+          .insert(purchases)
+          .values({
+            userId: event.externalId,
+            provider: provider.name,
+            providerChargeId: event.providerChargeId,
+            amountCents: PRICE_CENTS,
+            currency: "BRL",
+            status: "paid",
+            paidAt: new Date(),
+          })
+          .onConflictDoNothing();
       }
     }
   }

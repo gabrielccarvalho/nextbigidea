@@ -84,19 +84,27 @@ export const ideaEvidence = pgTable(
 
 // --- Payments ---
 
-export const purchases = pgTable("purchases", {
-  id: serial("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  provider: text("provider").notNull(), // abacatepay
-  providerChargeId: text("provider_charge_id").notNull(),
-  amountCents: integer("amount_cents").notNull(),
-  currency: text("currency").notNull().default("BRL"),
-  status: text("status").notNull().default("pending"), // pending | paid | refunded
-  paidAt: timestamp("paid_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const purchases = pgTable(
+  "purchases",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(), // abacatepay
+    providerChargeId: text("provider_charge_id").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    currency: text("currency").notNull().default("BRL"),
+    status: text("status").notNull().default("pending"), // pending | paid | refunded
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  // Payment providers RETRY webhooks. Without this constraint, two concurrent
+  // deliveries of the same charge can both pass a check-then-insert and write
+  // duplicate paid rows. The unique index makes idempotency a database
+  // guarantee rather than a race the application hopes to win.
+  (t) => [uniqueIndex("purchases_provider_charge_uq").on(t.providerChargeId)],
+);
 
 // --- Better Auth core tables ---
 // Field names/types follow Better Auth's expected schema. Do not rename columns.

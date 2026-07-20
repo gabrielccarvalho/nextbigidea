@@ -1,3 +1,9 @@
+// The authoritative charge amount is whatever price is configured on the AbacatePay product
+// referenced by ABACATEPAY_PRODUCT_ID (set once in AbacatePay's dashboard). This constant only
+// records what we *expect* that price to be, for locally computing/recording purchase amounts —
+// it does not drive the actual charge, and the two must be kept in sync manually.
+export const PRICE_CENTS = 11000; // R$110 ≈ $20 lifetime access
+
 export interface CheckoutResult {
   url: string;
   providerChargeId: string;

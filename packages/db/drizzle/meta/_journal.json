@@ -15,6 +15,13 @@
       "when": 1784512808079,
       "tag": "0001_aspiring_bloodaxe",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784514685362,
+      "tag": "0002_kind_machine_man",
+      "breakpoints": true
     }
   ]
 }

@@ -29,7 +29,7 @@ export function verifyHmac(rawBody: string, signature: string | null, secret: st
 }
 
 /** Constant-time comparison for the URL-borne webhook secret (see PaymentProvider docs). */
-function constantTimeEqual(a: string | null | undefined, b: string): boolean {
+export function constantTimeEqual(a: string | null | undefined, b: string): boolean {
   if (!a) return false;
   const ab = Buffer.from(a);
   const bb = Buffer.from(b);

@@ -3,8 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db, purchases } from "@workspace/db";
 import { getPaymentProvider } from "@/lib/payments";
-
-const PRICE_CENTS = 11000; // R$110 ≈ $20 lifetime access
+import { PRICE_CENTS } from "@/lib/payments/provider";
 
 export async function POST() {
   const session = await auth.api.getSession({ headers: await headers() });

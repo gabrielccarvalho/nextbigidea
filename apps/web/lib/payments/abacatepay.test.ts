@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { parseAbacateEvent, verifyHmac } from "./abacatepay";
+import { constantTimeEqual, parseAbacateEvent, verifyHmac } from "./abacatepay";
 
 const SECRET = "whsec_test";
 
@@ -42,6 +42,42 @@ describe("verifyHmac", () => {
     const body = '{"event":"checkout.completed"}';
     const sig = sign(body, SECRET);
     expect(verifyHmac('{"event":"checkout.refunded"}', sig, SECRET)).toBe(false);
+  });
+});
+
+// constantTimeEqual is the REAL authentication gate: AbacatePay's HMAC key is a public
+// constant shared by every merchant (see abacatepay.ts), so the ?webhookSecret= comparison
+// this function performs is the only thing separating real callbacks from forged ones.
+describe("constantTimeEqual", () => {
+  it("returns true for equal strings", () => {
+    expect(constantTimeEqual("whsec_test", "whsec_test")).toBe(true);
+  });
+
+  it("returns false for different strings of the same length", () => {
+    expect(constantTimeEqual("whsec_test", "whsec_fake")).toBe(false);
+  });
+
+  it("returns false for different strings of different lengths, without throwing", () => {
+    expect(() => constantTimeEqual("short", "a-much-longer-secret")).not.toThrow();
+    expect(constantTimeEqual("short", "a-much-longer-secret")).toBe(false);
+  });
+
+  it("returns false for null", () => {
+    expect(constantTimeEqual(null, "whsec_test")).toBe(false);
+  });
+
+  it("returns false for undefined", () => {
+    expect(constantTimeEqual(undefined, "whsec_test")).toBe(false);
+  });
+
+  // The case that matters most: if ABACATEPAY_WEBHOOK_SECRET is unset, `b` is "". A request
+  // with no ?webhookSecret= param at all must NOT be treated as authenticated.
+  it("returns false when both sides are empty strings (unset secret must never authenticate an empty query param)", () => {
+    expect(constantTimeEqual("", "")).toBe(false);
+  });
+
+  it("returns false when the provided secret is empty but the real secret is not", () => {
+    expect(constantTimeEqual("", "whsec_test")).toBe(false);
   });
 });
 
