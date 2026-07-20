@@ -2281,6 +2281,7 @@ git commit -m "feat(pipeline): add enrich stage, orchestrator, run report, and w
 
 **Files:**
 - Modify: `apps/web/package.json` (add deps)
+- Modify: `apps/web/next.config.ts` (add `@workspace/db` to `transpilePackages`)
 - Create: `apps/web/lib/db.ts`
 - Create: `packages/db/src/queries.ts`, and re-export from `packages/db/src/index.ts`
 - Test: `packages/db/test/queries.test.ts` + `packages/db/vitest.config.ts` + add `vitest` devDep and `test` script to `packages/db/package.json`
@@ -2302,7 +2303,22 @@ Edit `apps/web/package.json` `dependencies` — add:
 ```
 (Better Auth + Resend are installed now but used in Task 12.)
 
-- [ ] **Step 2: Create the web db re-export**
+- [ ] **Step 2: Add `@workspace/db` to transpilePackages**
+
+`packages/db` ships raw TypeScript (`exports: { ".": "./src/index.ts" }`) with no build step, so Next.js must be told to transpile it exactly as it already is for `@workspace/ui`. Without this the web app fails to compile every `@workspace/db` import.
+
+`apps/web/next.config.ts`:
+```ts
+import type { NextConfig } from "next"
+
+const nextConfig: NextConfig = {
+  transpilePackages: ["@workspace/ui", "@workspace/db"],
+}
+
+export default nextConfig
+```
+
+- [ ] **Step 3: Create the web db re-export**
 
 `apps/web/lib/db.ts`:
 ```ts
