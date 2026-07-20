@@ -29,4 +29,12 @@ describe("degradable adapters enablement", () => {
     const e = env({ sources: { ...env().sources, linkedin: true } });
     expect(linkedinAdapter.enabled(e)).toBe(false);
   });
+
+  it("linkedin is enabled only with flag AND cookie", () => {
+    const e = env({
+      sources: { ...env().sources, linkedin: true },
+      linkedinSessionCookie: "li_at=abc",
+    });
+    expect(linkedinAdapter.enabled(e)).toBe(true);
+  });
 });
