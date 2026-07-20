@@ -18,9 +18,9 @@ export function PaywallCta({ authenticated }: { authenticated: boolean }) {
 
   return (
     <div className="rounded-lg border bg-muted/30 p-6 text-center">
-      <h2 className="text-lg font-semibold">Unlock every idea — $20 lifetime</h2>
+      <h2 className="text-lg font-semibold">Unlock every idea — R$110 lifetime</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        One payment (PIX ≈ R$110). All current and future ideas, forever.
+        One card payment. All current and future ideas, forever.
       </p>
       <button
         onClick={buy}

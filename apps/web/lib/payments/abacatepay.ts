@@ -105,7 +105,10 @@ export class AbacatePayProvider implements PaymentProvider {
         // fixed price. It's kept on the PaymentProvider interface for providers (Stripe, etc.)
         // that do take it directly.
         items: [{ id: this.productId, quantity: 1 }],
-        methods: ["PIX"],
+        // Card-only by product decision. To also accept PIX, add "PIX" here — but
+        // keep the customer-facing copy in `app/page.tsx` and `components/paywall-cta.tsx`
+        // in sync, since it names the accepted method.
+        methods: ["CARD"],
         externalId: input.userId,
         returnUrl: input.returnUrl,
         completionUrl: input.completionUrl,
