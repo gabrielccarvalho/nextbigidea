@@ -62,6 +62,13 @@ export interface IdentifiedPeriod {
  * compounds down a long chain. Re-anchoring keeps every row exactly one calendar year, which is
  * the invariant `computeNextPeriod` established when it built the stack.
  *
+ * ASSUMPTION — every period in a chain is exactly `addOneYear` long. True today: annual is the
+ * only plan, and `computeNextPeriod` is the only thing that ever writes a period. If a non-annual
+ * period is ever introduced, re-anchoring will silently rewrite those rows to one year each,
+ * granting or revoking time nobody asked for. Introducing a second period length REQUIRES
+ * carrying each row's own length through this function instead of re-deriving it from
+ * `addOneYear`.
+ *
  * Pure: no clock needed (the result is relative to the refunded row), inputs are never mutated,
  * and only the rows that actually change are returned.
  *

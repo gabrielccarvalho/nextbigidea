@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { and, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { getTransactionalDb, purchases } from "@workspace/db";
 import { getPaymentProvider } from "@/lib/payments";
 import { PRICE_CENTS } from "@/lib/payments/provider";
 import { computeNextPeriod, computeRefundStackShift } from "@/lib/billing-period";
+import { needsSubscriptionIdBackfill } from "@/lib/payments/subscription-backfill";
 
 /** The drizzle transaction handle, derived so it stays correct if the client type changes. */
 type TransactionalDb = ReturnType<typeof getTransactionalDb>;
@@ -41,6 +42,11 @@ function postgresErrorCode(err: unknown): string | undefined {
  */
 async function lockUser(tx: Tx, userId: string) {
   // The `::text` cast keeps Postgres from having to infer the parameter's type for hashtext().
+  //
+  // NOT A BUG: `hashtext` returns int4, so two different user ids can collide onto the same lock
+  // key. The only consequence is that those two users' webhooks serialize against each other for
+  // the duration of one transaction. Correctness is unaffected — the lock is a mutual-exclusion
+  // primitive, never an identity — so a collision costs a little throughput and nothing else.
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}::text))`);
 }
 
@@ -104,7 +110,10 @@ export async function POST(req: NextRequest) {
       .select({ id: purchases.id, userId: purchases.userId })
       .from(purchases)
       .where(
-        and(eq(purchases.providerChargeId, event.providerChargeId), eq(purchases.status, "pending")),
+        and(
+          eq(purchases.providerChargeId, event.providerChargeId),
+          eq(purchases.status, "pending"),
+        ),
       )
       .limit(1);
 
@@ -144,23 +153,69 @@ export async function POST(req: NextRequest) {
           })
           .where(and(eq(purchases.id, row.id), eq(purchases.status, "pending")));
       });
-    } else if (event.externalId) {
-      const externalId = event.externalId;
-      // Fallback: no pending row matched (e.g. the checkout-creation write never landed).
+    } else {
+      // Fallback: nothing for this charge is still `pending`. Either the checkout-creation write
+      // never landed (nothing exists — insert), or the charge was already processed by a sibling
+      // event (a row exists — the only thing left worth doing is back-filling the subscription id).
+      const known = await db
+        .select({ userId: purchases.userId })
+        .from(purchases)
+        .where(eq(purchases.providerChargeId, event.providerChargeId))
+        .limit(1);
+
+      // Whose money this is. `subscription.completed` carries `externalId`; `checkout.completed`
+      // may not, in which case an already-stored row still tells us the owner.
+      const ownerId = event.externalId ?? known[0]?.userId;
+
+      if (!ownerId) {
+        // FIX: this used to fall off the end of the branch and return 200 — a payment was
+        // collected, NOTHING was recorded, and AbacatePay never redelivered because 200 means
+        // final. There is no row and no user to attach one to, but that is a state a retry can
+        // resolve (the pending row may simply not have been written yet), so make it loud and
+        // retryable instead of silent and permanent.
+        console.error(
+          `[payments] paid webhook for charge ${event.providerChargeId} has no pending row, no ` +
+            `existing row and no externalId; NOTHING was recorded for this payment`,
+        );
+        return NextResponse.json({ error: "unresolvable_paid_event" }, { status: 503 });
+      }
+
       // Only insert a paid row if none exists yet for this charge — this makes a replayed
       // webhook a no-op instead of creating a duplicate paid purchase.
       try {
         await db.transaction(async (tx) => {
-          await lockUser(tx, externalId);
+          await lockUser(tx, ownerId);
           const existing = await tx
-            .select({ id: purchases.id })
+            .select({
+              id: purchases.id,
+              providerSubscriptionId: purchases.providerSubscriptionId,
+            })
             .from(purchases)
             .where(eq(purchases.providerChargeId, event.providerChargeId))
             .limit(1)
             .for("update");
-          if (existing.length > 0) return;
 
-          const period = await nextPeriodFor(tx, externalId);
+          if (existing.length > 0) {
+            const row = existing[0]!;
+            // FIX (the checkout.completed-before-subscription.completed hole): the row is already
+            // `paid`, so the pending-row branch above could not match it and the subscription id
+            // it carries had nowhere to go. Write it now. See needsSubscriptionIdBackfill — this
+            // ONLY ever fills a NULL, never replaces a stored id. Doing it here means it runs
+            // under the same advisory lock and row lock as every other write to this row, and the
+            // `providerSubscriptionId IS NULL` predicate re-asserts the same condition on the
+            // UPDATE so a concurrent delivery cannot clobber a value it did not see.
+            if (
+              needsSubscriptionIdBackfill(row.providerSubscriptionId, event.providerSubscriptionId)
+            ) {
+              await tx
+                .update(purchases)
+                .set({ providerSubscriptionId: event.providerSubscriptionId! })
+                .where(and(eq(purchases.id, row.id), isNull(purchases.providerSubscriptionId)));
+            }
+            return;
+          }
+
+          const period = await nextPeriodFor(tx, ownerId);
           // onConflictDoNothing: purchases_provider_charge_uq makes idempotency a database
           // guarantee — a concurrent retry that loses this race is a no-op, not a 500 that
           // makes the provider retry forever. The explicit target keeps that intent legible
@@ -168,7 +223,7 @@ export async function POST(req: NextRequest) {
           await tx
             .insert(purchases)
             .values({
-              userId: externalId,
+              userId: ownerId,
               provider: provider.name,
               providerChargeId: event.providerChargeId,
               providerSubscriptionId: event.providerSubscriptionId ?? null,
@@ -182,7 +237,7 @@ export async function POST(req: NextRequest) {
             .onConflictDoNothing({ target: purchases.providerChargeId });
         });
       } catch (err) {
-        // `externalId` is a FK to user.id. A stale or deleted user makes this throw, and a 500
+        // `user_id` is a FK to user.id. A stale or deleted user makes this throw, and a 500
         // would make AbacatePay retry the same doomed event indefinitely. The event IS verified
         // at this point — it just can't be resolved to a user — so acknowledge it and surface the
         // problem in logs instead of looping forever.
@@ -199,7 +254,7 @@ export async function POST(req: NextRequest) {
         if (postgresErrorCode(err) !== FOREIGN_KEY_VIOLATION) throw err;
         console.error(
           `[payments] verified webhook for charge ${event.providerChargeId} could not be ` +
-            `resolved to user ${externalId}:`,
+            `resolved to user ${ownerId}:`,
           err,
         );
       }
@@ -253,7 +308,7 @@ export async function POST(req: NextRequest) {
     // refunding an earlier charge in a stack revoked nothing at all — the row stacked on top of
     // it still ended at the same far-future date. The refunded year has to stop counting AND
     // everything resting on it has to slide back by that year. See computeRefundStackShift.
-    await db.transaction(async (tx) => {
+    const revoked = await db.transaction(async (tx) => {
       // Resolve the owner before taking any lock so the advisory lock is still the first lock
       // acquired, keeping lock ordering identical across every branch.
       const target = await tx
@@ -261,7 +316,7 @@ export async function POST(req: NextRequest) {
         .from(purchases)
         .where(eq(purchases.providerChargeId, event.providerChargeId))
         .limit(1);
-      if (target.length === 0) return; // unknown charge — nothing to revoke (same as before)
+      if (target.length === 0) return false;
       await lockUser(tx, target[0]!.userId);
 
       // Re-read under a row lock. Filtering on `status = 'paid'` is what makes this idempotent:
@@ -291,7 +346,7 @@ export async function POST(req: NextRequest) {
           .update(purchases)
           .set({ status: "refunded" })
           .where(eq(purchases.providerChargeId, event.providerChargeId));
-        return;
+        return true;
       }
 
       const others = await tx
@@ -332,7 +387,22 @@ export async function POST(req: NextRequest) {
           .set({ periodStart: row.periodStart, periodEnd: row.periodEnd })
           .where(eq(purchases.id, row.id));
       }
+      return true;
     });
+
+    if (!revoked) {
+      console.error(
+        `[payments] refund/chargeback for charge ${event.providerChargeId} matched no purchase ` +
+          `row; NOTHING was revoked`,
+      );
+      // FIX: this used to fall through to a 200, exactly the defect already fixed for renewals.
+      // Webhook delivery is neither ordered nor guaranteed, so "the paid row hasn't been written
+      // yet" is RECOVERABLE — but 200 tells AbacatePay the refund is final and it never comes
+      // back. The paid event then lands afterwards and grants a full year that was charged back,
+      // with no second refund delivery to undo it. A 5xx gets the refund redelivered and the
+      // retry succeeds once the paid row exists.
+      return NextResponse.json({ error: "refund_target_not_found" }, { status: 503 });
+    }
   } else if (event.type === "cancelled") {
     // Deliberately no access change: the customer paid through period_end and keeps it.
     // AbacatePay cancellation is immediate and stops future charges, so access lapses on
