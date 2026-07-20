@@ -3359,7 +3359,18 @@ export async function requireAdmin(): Promise<string> {
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db, ideas } from "@workspace/db";
-import { requireAdmin } from "@/lib/admin";
+import { requireAdmin } from "@/lib/require-admin";
+
+// `Number(formData.get("id"))` yields 0 for a missing field and NaN for a
+// malformed one, both of which flow straight into `eq(ideas.id, ...)` — a
+// silent no-op or a driver-level error rather than a clear failure.
+function parseIdeaId(formData: FormData): number {
+  const id = Number(formData.get("id"));
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error("invalid idea id");
+  }
+  return id;
+}
 
 export async function publishIdea(formData: FormData) {
   await requireAdmin();
