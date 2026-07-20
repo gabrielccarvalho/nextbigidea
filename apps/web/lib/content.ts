@@ -62,6 +62,7 @@ export const SPECIMEN = {
     asks: "Asks",
     mrr: "Est. MRR",
     sources: "Sources",
+    competition: "What exists today",
   },
   idea: {
     niche: "Finance ops",
@@ -71,6 +72,8 @@ export const SPECIMEN = {
     demandScore: 94,
     asks: 47,
     mrrRange: "$2–6k",
+    competition:
+      "Three tools do this inside a larger billing suite. None of them do it on its own, and each one expects you to move your whole invoicing workflow across first.",
     evidence: [
       { quote: "Six tools tried, none of them just send the invoice.", source: "Reddit" },
       { quote: "I'd pay for something that does only this.", source: "Hacker News" },

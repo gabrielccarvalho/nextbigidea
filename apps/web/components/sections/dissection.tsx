@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Rail, RailStep, Section } from "@/components/section";
+import { Rail, RailStep, Section, SectionHeading } from "@/components/section";
 import { SpecimenCard, type SpecimenRegion } from "@/components/specimen-card";
-import { DISSECTION } from "@/lib/content";
+import { DISSECTION, SPECIMEN } from "@/lib/content";
 
 export function Dissection() {
   const [active, setActive] = useState<SpecimenRegion>(null);
@@ -45,7 +45,12 @@ export function Dissection() {
 
   return (
     <Section id="anatomy" density="tight">
-      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)] lg:gap-16">
+      <SectionHeading
+        eyebrow={SPECIMEN.eyebrow}
+        title={SPECIMEN.sectionTitle}
+        intro={SPECIMEN.intro}
+      />
+      <div className="mt-12 grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)] lg:gap-16">
         <div className="lg:sticky lg:top-28 lg:self-start">
           <SpecimenCard highlight={active} />
         </div>

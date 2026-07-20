@@ -55,14 +55,14 @@ export function SpecimenCard({ highlight = null }: { highlight?: SpecimenRegion 
           { v: idea.mrrRange, l: labels.mrr },
           { v: SOURCES.length, l: labels.sources },
         ].map((cell) => (
-          <div key={cell.l} className="bg-background px-4 py-3.5 sm:px-6">
-            <dt className="sr-only">{cell.l}</dt>
-            <dd>
-              <span className="block font-mono text-base font-semibold tabular-nums">{cell.v}</span>
-              <span className="mt-1 block font-mono text-[0.55rem] uppercase tracking-[0.17em] text-muted-foreground">
-                {cell.l}
-              </span>
-            </dd>
+          <div
+            key={cell.l}
+            className="flex flex-col-reverse gap-1 bg-background px-4 py-3.5 sm:px-6"
+          >
+            <dt className="font-mono text-[0.55rem] uppercase tracking-[0.17em] text-muted-foreground">
+              {cell.l}
+            </dt>
+            <dd className="font-mono text-base font-semibold tabular-nums">{cell.v}</dd>
           </div>
         ))}
       </dl>
@@ -92,6 +92,13 @@ export function SpecimenCard({ highlight = null }: { highlight?: SpecimenRegion 
             </li>
           ))}
         </ul>
+      </div>
+
+      <div className={cn("border-t border-border p-6", region(highlight, "catch"))}>
+        <h4 className="font-mono text-[0.55rem] uppercase tracking-[0.2em] text-muted-foreground">
+          {labels.competition}
+        </h4>
+        <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">{idea.competition}</p>
       </div>
     </article>
   );
