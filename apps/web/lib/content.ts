@@ -133,21 +133,6 @@ export const HOW_IT_WORKS = {
   ],
 } as const;
 
-export const ANATOMY = {
-  eyebrow: "What you get",
-  title: "Anatomy of an idea.",
-  intro: "Every entry carries the same evidence, so you can judge it the way you'd judge your own research.",
-  callouts: [
-    { label: "Demand score", body: "0–100, derived from how many people asked and how strongly." },
-    { label: "Ask count", body: "How many distinct posts describe this missing product." },
-    { label: "Estimated MRR", body: "A range derived from comparable products — shown as a range, because it is one." },
-    { label: "Competition notes", body: "What already exists, and where it falls short of what people asked for." },
-    { label: "Validation signals", body: "The specific phrases that indicate willingness to pay." },
-    { label: "Source links", body: "Every post behind the idea, linked. Go read them yourself." },
-  ],
-  closer: "Every number here traces back to a post you can go read yourself.",
-} as const;
-
 export const WHY_EVIDENCE = {
   eyebrow: "Why evidence wins",
   title: "Why not just ask an AI for fifty ideas?",
