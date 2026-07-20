@@ -2364,6 +2364,38 @@ describe("orderIdeasForListing", () => {
     ]);
     expect(out.map((i) => i.id)).toEqual([2, 3, 1]);
   });
+
+  // The contract has THREE rules. Testing only the first two leaves the
+  // tiebreak free to regress (flipped operands, bad null fallback) unnoticed.
+  it("breaks demandScore ties by most recently published first", () => {
+    const out = orderIdeasForListing([
+      idea({ id: 1, demandScore: 50, publishedAt: new Date("2026-01-01") }),
+      idea({ id: 2, demandScore: 50, publishedAt: new Date("2026-06-01") }),
+      idea({ id: 3, demandScore: 50, publishedAt: new Date("2026-03-01") }),
+    ]);
+    expect(out.map((i) => i.id)).toEqual([2, 3, 1]);
+  });
+
+  it("ranks a null publishedAt last among equal scores", () => {
+    const out = orderIdeasForListing([
+      idea({ id: 1, demandScore: 50, publishedAt: null }),
+      idea({ id: 2, demandScore: 50, publishedAt: new Date("2026-01-01") }),
+    ]);
+    expect(out.map((i) => i.id)).toEqual([2, 1]);
+  });
+
+  it("does not mutate its input", () => {
+    const input = [
+      idea({ id: 1, isFree: false, demandScore: 10 }),
+      idea({ id: 2, isFree: true, demandScore: 5 }),
+    ];
+    orderIdeasForListing(input);
+    expect(input.map((i) => i.id)).toEqual([1, 2]);
+  });
+
+  it("returns an empty array unchanged", () => {
+    expect(orderIdeasForListing([])).toEqual([]);
+  });
 });
 ```
 
