@@ -4,7 +4,11 @@ import { FINAL_CTA } from "@/lib/content";
 
 export function FinalCta() {
   return (
-    <Section className="text-center">
+    <Section density="open" className="text-center">
+      <div aria-hidden className="mx-auto mb-14 flex w-px flex-col items-center">
+        <span className="h-20 w-px bg-gradient-to-b from-transparent to-border" />
+        <span className="size-1.5 rounded-full bg-chart-1 ring-4 ring-background" />
+      </div>
       <SectionHeading title={FINAL_CTA.title} align="center" />
       <p className="mx-auto mt-4 max-w-xl text-muted-foreground">{FINAL_CTA.body}</p>
       <Link
