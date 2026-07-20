@@ -9,8 +9,8 @@ export default function Home() {
       </h1>
       <p className="mt-4 text-lg text-muted-foreground">
         Every week we scan Reddit, Hacker News, and Product Hunt for people describing a
-        product that doesn&apos;t exist yet — then turn the strongest posts into scored ideas,
-        each linked back to the exact posts that prove someone wants it.
+        product that doesn&apos;t exist yet — the strongest posts become scored ideas, published
+        monthly and each linked back to the exact posts that prove someone wants it.
       </p>
       <ul className="mt-6 space-y-1 text-sm text-muted-foreground">
         <li>&bull; 5 ideas are free to browse, no account needed to look around.</li>
