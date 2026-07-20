@@ -43,6 +43,17 @@ export function HeroAnimation() {
       setIdea(first);
       setPhase("scored idea");
       if (scoreRef.current) scoreRef.current.textContent = String(first.score);
+      // A forwards-filling WAAPI animation keeps controlling computed opacity
+      // even after it finishes, and it wins over inline style. If reduced
+      // motion flips on mid-recede (or after it), setting style.opacity below
+      // would be silently overridden by the finished recede animation and
+      // the card would stay invisible forever. Cancelling any in-flight
+      // animations first hands control back to inline style. Also cancel on
+      // core/ring defensively so a mid-flare core or expanding ring can't
+      // linger either, even though only `card` is made visible below.
+      cardRef.current?.getAnimations().forEach((a) => a.cancel());
+      coreRef.current?.getAnimations().forEach((a) => a.cancel());
+      ringRef.current?.getAnimations().forEach((a) => a.cancel());
       if (cardRef.current) cardRef.current.style.opacity = "1";
       return;
     }
@@ -124,6 +135,18 @@ export function HeroAnimation() {
     const cycle = () => {
       spawned.forEach((el) => el.remove());
       spawned.length = 0;
+
+      // Drop the previous cycle's timer IDs so `timers` doesn't grow forever
+      // across an indefinite mount. Safe because cycle() only ever runs here
+      // via the after(cycle, CYCLE_MS) callback (or once synchronously on
+      // mount, when `timers` is already empty) — and CYCLE_MS (9100ms) is
+      // larger than every other delay scheduled in a cycle (per-post
+      // collapse and the condensing timer at GATHER_MS = 3400ms, the
+      // form-card timer at FORM_AT = 4400ms, the recede timer at
+      // RECEDE_AT = 8200ms). So by the time the CYCLE_MS timer fires and
+      // invokes cycle() again, every other timer from that cycle has
+      // already fired and its ID is inert; none are still pending.
+      timers.length = 0;
 
       const current = SAMPLE_IDEAS[cycleIndex % SAMPLE_IDEAS.length]!;
       cycleIndex += 1;
