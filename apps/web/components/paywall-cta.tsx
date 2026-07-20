@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { PAYWALL_CTA, PRICING } from "@/lib/content";
 
 export function PaywallCta({
@@ -10,6 +12,7 @@ export function PaywallCta({
   variant?: "standalone" | "embedded";
 }) {
   const [loading, setLoading] = useState(false);
+  const pathname = usePathname();
 
   async function buy() {
     setLoading(true);
@@ -51,13 +54,24 @@ export function PaywallCta({
           <p className="mt-1 text-sm text-muted-foreground">{PAYWALL_CTA.subtext}</p>
         </>
       )}
-      <button
-        onClick={buy}
-        disabled={loading}
-        className="mt-4 rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background disabled:opacity-50"
-      >
-        {loading ? "Redirecting…" : authenticated ? PAYWALL_CTA.ctaAuthenticated : PAYWALL_CTA.ctaSignedOut}
-      </button>
+      {authenticated ? (
+        <button
+          onClick={buy}
+          disabled={loading}
+          className="mt-4 rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background disabled:opacity-50"
+        >
+          {loading ? "Redirecting…" : PAYWALL_CTA.ctaAuthenticated}
+        </button>
+      ) : (
+        // Signed out: go sign in first, then return to this exact page to complete checkout.
+        // Replaces the old checkout→401→/account bounce.
+        <Link
+          href={`/login?next=${encodeURIComponent(pathname)}`}
+          className="mt-4 inline-block rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background"
+        >
+          {PAYWALL_CTA.ctaSignedOut}
+        </Link>
+      )}
     </div>
   );
 }
