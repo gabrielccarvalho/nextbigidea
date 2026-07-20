@@ -41,10 +41,74 @@ export const HERO = {
   secondaryHref: "/#how-it-works",
 } as const;
 
-export const PROBLEM = {
-  eyebrow: "Why most side projects die",
-  title: "Building something nobody asked for is the default outcome.",
-  body: "You can ship fast, write clean code, and still spend six months on a product with no demand behind it. The hard part was never the building. It's knowing what's worth building.",
+export type SpecimenEvidence = {
+  quote: string;
+  source: (typeof SOURCES)[number]["name"];
+};
+
+// Illustrative, NOT a real published entry — the same standard as SAMPLE_IDEAS
+// below. `exampleTag` renders on the card, and evidence rows deliberately carry
+// no href. See docs/superpowers/specs/2026-07-20-landing-page-rework-design.md,
+// "Content integrity". Enforced by lib/content.test.ts.
+export const SPECIMEN = {
+  eyebrow: "What you get",
+  sectionTitle: "This is one of them.",
+  intro:
+    "One entry, in full. Every published idea carries the same evidence, so you can judge it the way you'd judge your own research.",
+  exampleTag: "Example entry",
+  evidenceHeading: "What people actually said",
+  labels: {
+    score: "Demand",
+    asks: "Asks",
+    mrr: "Est. MRR",
+    sources: "Sources",
+  },
+  idea: {
+    niche: "Finance ops",
+    title: "Invoice autopilot",
+    oneLiner:
+      "Watches your billing inbox and sends the invoice without being asked twice.",
+    demandScore: 94,
+    asks: 47,
+    mrrRange: "$2–6k",
+    evidence: [
+      { quote: "Six tools tried, none of them just send the invoice.", source: "Reddit" },
+      { quote: "I'd pay for something that does only this.", source: "Hacker News" },
+      { quote: "Every billing tool wants to be an ERP.", source: "Product Hunt" },
+    ] as readonly SpecimenEvidence[],
+  },
+} as const;
+
+// The four passages that scroll past the pinned specimen. `key` maps to the
+// region of the card that highlights while the passage is active — the values
+// must stay in sync with the SpecimenRegion type in components/specimen-card.tsx.
+export const DISSECTION = {
+  steps: [
+    {
+      n: "01",
+      key: "score",
+      title: "The score",
+      body: "0–100, from how many people asked and how strongly they asked. A 94 means this one came up constantly, in frustrated language.",
+    },
+    {
+      n: "02",
+      key: "numbers",
+      title: "The numbers",
+      body: "Ask count is distinct posts, not upvotes. The revenue figure is a range derived from comparable products — a range, because that is what it honestly is.",
+    },
+    {
+      n: "03",
+      key: "receipts",
+      title: "The receipts",
+      body: "Every claim traces to a post. On a published entry these are live links you can go read yourself.",
+    },
+    {
+      n: "04",
+      key: "catch",
+      title: "The catch",
+      body: "What already exists, and where it falls short of what people asked for.",
+    },
+  ],
 } as const;
 
 export const HOW_IT_WORKS = {
