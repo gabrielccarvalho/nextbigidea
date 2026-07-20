@@ -31,17 +31,23 @@ export function Hero() {
 
       {/* Mobile: the field flows below the pitch, so drifting cards never cross
           the subhead. lg and up: it goes behind, full-bleed, as the ambient
-          field the pitch sits on. */}
+          field the pitch sits on — offset below the pitch's measured bottom
+          edge (~410px at lg/xl/2xl, the copy doesn't reflow above lg) so the
+          stage's overflow-hidden clip guarantees no card can render above the
+          CTA row, however far it drifts from the stage's center. */}
       <div
         aria-hidden
-        className="pointer-events-none relative mt-6 lg:absolute lg:inset-x-0 lg:top-32 lg:-z-10 lg:mt-0"
+        className="pointer-events-none relative mt-6 lg:absolute lg:inset-x-0 lg:top-[440px] lg:-z-10 lg:mt-0"
       >
         <HeroAnimation />
       </div>
 
       {/* Reserves the field's height at lg only — below that the field is in
-          normal flow and takes its own space. */}
-      <div aria-hidden className="hidden lg:block lg:h-[430px]" />
+          normal flow and takes its own space. 611px = (440px offset + 580px
+          stage height) - ~410px pitch bottom, so the section's flow height
+          exactly covers the field before pb-8 closes the gap to the next
+          section. */}
+      <div aria-hidden className="hidden lg:block lg:h-[611px]" />
     </section>
   );
 }
