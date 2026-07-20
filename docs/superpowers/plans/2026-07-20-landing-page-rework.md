@@ -1074,11 +1074,18 @@ export function HeroAnimation() {
   }, []);
 
   useEffect(() => {
+    // NOTE: this effect must depend on [reduced] ONLY. It calls setIdea() on
+    // every cycle; if `idea` were a dependency the effect would tear itself
+    // down and restart on each cycle, producing an infinite restart loop.
+    // Read the current idea from SAMPLE_IDEAS inside the closure instead.
+
     // Reduced motion renders the composed final state: a finished card with a
     // real score. Never an empty stage.
     if (reduced) {
+      const first = SAMPLE_IDEAS[0]!;
+      setIdea(first);
       setPhase("scored idea");
-      if (scoreRef.current) scoreRef.current.textContent = String(idea.score);
+      if (scoreRef.current) scoreRef.current.textContent = String(first.score);
       if (cardRef.current) cardRef.current.style.opacity = "1";
       return;
     }
@@ -1222,7 +1229,9 @@ export function HeroAnimation() {
       timers.forEach(clearTimeout);
       spawned.forEach((el) => el.remove());
     };
-  }, [reduced, idea.score]);
+    // Intentionally [reduced] only — see the note at the top of this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reduced]);
 
   return (
     <div
