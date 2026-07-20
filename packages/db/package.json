@@ -9,6 +9,7 @@
   "scripts": {
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:migrate:local": "tsx src/migrate.ts",
     "db:push": "drizzle-kit push",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
@@ -24,6 +25,7 @@
     "@workspace/typescript-config": "workspace:*",
     "dotenv": "^16.4.7",
     "drizzle-kit": "^0.31.5",
+    "tsx": "^4.23.1",
     "typescript": "^5",
     "vitest": "^3.0.5"
   }

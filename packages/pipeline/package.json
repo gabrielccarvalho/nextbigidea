@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/cli.ts",
+    "seed:local": "tsx src/seed-local.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

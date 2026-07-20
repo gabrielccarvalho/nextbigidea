@@ -152,9 +152,32 @@ export const IDEA_DETAIL = {
   sourcesHeading: "Sources",
 } as const;
 
+export const LOGIN = {
+  headline: "Sign in to see every idea backed by real demand.",
+  bullets: [
+    {
+      title: "The original posts",
+      body: "Who asked for it, and how many people did.",
+    },
+    {
+      title: "A conservative MRR estimate",
+      body: "With the methodology shown, not a number pulled from air.",
+    },
+    {
+      title: "Everything published, plus weekly drops",
+      body: "Every idea live today and each new one while you're subscribed.",
+    },
+  ],
+  offer: `Full access · ${PRICING.amountBRL}/${PRICING.term} · cancel anytime`,
+  welcomeHeading: "Welcome",
+  welcomeLede: "Continue with your Google account to unlock the full database.",
+  cta: "Continue with Google",
+  reassurance:
+    "We only use this to sign you in — no posting to your account, no email spam.",
+} as const;
+
 export const ACCOUNT_PAGE = {
   title: "Your account",
-  signInPrompt: "Sign in to manage your access.",
   accessActiveHeading: "Access active",
   freePlanMessage: `You're on the free plan (${PRICING.freeIdeaCount} ideas).`,
   ideasLinkLabel: "Go to the ideas",

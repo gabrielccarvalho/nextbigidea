@@ -1,0 +1,60 @@
+# Local end-to-end stack.
+#
+# The app talks to Neon in production via @neondatabase/serverless, which does NOT speak the
+# raw Postgres wire protocol — it speaks Neon's HTTP (`neon()`) and WebSocket (`Pool`) dialects.
+# Swapping in node-postgres locally would be simpler but would diverge from production in a way
+# that hides real bugs: the neon-http driver cannot open a transaction at all, which is the entire
+# reason `getTransactionalDb()` exists. So instead we put the two Neon proxies in front of a stock
+# Postgres and keep the application drivers byte-for-byte identical to production.
+#
+#   app --http--> neon-http-proxy :4444 --\
+#                                          >--> postgres :5432
+#   app --ws----> neon-ws-proxy   :4445 --/
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: nbt-postgres
+    environment:
+      POSTGRES_USER: nbt
+      POSTGRES_PASSWORD: nbt
+      POSTGRES_DB: nbt
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nbt -d nbt"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Serves the Neon HTTP SQL endpoint that `neon(url)` / drizzle-orm/neon-http calls.
+  neon-http-proxy:
+    image: ghcr.io/timowilhelm/local-neon-http-proxy:main
+    container_name: nbt-neon-http
+    environment:
+      PG_CONNECTION_STRING: postgres://nbt:nbt@postgres:5432/nbt
+    ports:
+      - "4444:4444"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Tunnels the Postgres wire protocol over WebSocket for `new Pool()` /
+  # drizzle-orm/neon-serverless — the transaction-capable path used by the payment webhook.
+  neon-ws-proxy:
+    image: ghcr.io/neondatabase/wsproxy:latest
+    container_name: nbt-neon-ws
+    environment:
+      APPEND_PORT: "postgres:5432"
+      ALLOW_ADDR_REGEX: ".*"
+      LOG_TRAFFIC: "false"
+    ports:
+      - "4445:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
