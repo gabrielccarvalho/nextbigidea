@@ -10,6 +10,18 @@ export function enabledAdapters(adapters: SourceAdapter[], env: PipelineEnv): So
   return adapters.filter((a) => a.enabled(env));
 }
 
+// A NaN or non-positive cap would make every `client.spentMillicents < cap`
+// guard false, silently disabling all paid stages instead of capping spend.
+// Fail loudly on a malformed value rather than failing closed and quiet.
+export function parseUsdCap(raw: string | undefined): number {
+  if (raw === undefined || raw === "") return 5;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new Error(`PIPELINE_MONTHLY_USD_CAP must be a positive number, got ${JSON.stringify(raw)}`);
+  }
+  return n;
+}
+
 export function loadEnv(): PipelineEnv {
   const req = (k: string): string => {
     const v = process.env[k];
@@ -20,7 +32,7 @@ export function loadEnv(): PipelineEnv {
   return {
     databaseUrl: req("DATABASE_URL"),
     anthropicApiKey: req("ANTHROPIC_API_KEY"),
-    monthlyUsdCap: Number(process.env.PIPELINE_MONTHLY_USD_CAP ?? "5"),
+    monthlyUsdCap: parseUsdCap(process.env.PIPELINE_MONTHLY_USD_CAP),
     sources: {
       reddit: flag("SOURCE_REDDIT"),
       hackernews: flag("SOURCE_HACKERNEWS"),

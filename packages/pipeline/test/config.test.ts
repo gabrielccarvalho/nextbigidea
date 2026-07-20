@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { enabledAdapters } from "../src/config";
+import { enabledAdapters, parseUsdCap } from "../src/config";
 import type { PipelineEnv, SourceAdapter } from "../src/types";
 
 function baseEnv(overrides: Partial<PipelineEnv> = {}): PipelineEnv {
@@ -34,5 +34,27 @@ describe("enabledAdapters", () => {
       sources: { reddit: false, hackernews: false, producthunt: false, x: false, linkedin: false },
     });
     expect(enabledAdapters(ADAPTERS, env)).toEqual([]);
+  });
+});
+
+describe("parseUsdCap", () => {
+  it("defaults to 5 when unset or blank", () => {
+    expect(parseUsdCap(undefined)).toBe(5);
+    expect(parseUsdCap("")).toBe(5);
+  });
+
+  it("parses a valid positive number", () => {
+    expect(parseUsdCap("12.5")).toBe(12.5);
+  });
+
+  // A NaN cap would make every `spent < cap` guard false, silently disabling
+  // all paid stages instead of capping them.
+  it("throws on a non-numeric value rather than yielding NaN", () => {
+    expect(() => parseUsdCap("five")).toThrow(/positive number/);
+  });
+
+  it("throws on zero or negative", () => {
+    expect(() => parseUsdCap("0")).toThrow(/positive number/);
+    expect(() => parseUsdCap("-3")).toThrow(/positive number/);
   });
 });
