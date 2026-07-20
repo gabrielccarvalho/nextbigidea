@@ -37,8 +37,8 @@ export const HERO = {
     "Every week we read public posts across Reddit, Hacker News, and Product Hunt looking for people describing a product that doesn't exist yet — then score the strongest signals and link each one back to the posts that prove it. Nobody's built them yet.",
   primaryCta: "Browse the ideas",
   primaryHref: "/ideas",
-  secondaryCta: "See how it works",
-  secondaryHref: "/#how-it-works",
+  secondaryCta: "See what you get",
+  secondaryHref: "/#what-you-get",
 } as const;
 
 export type SpecimenEvidence = {
@@ -110,28 +110,6 @@ export const DISSECTION = {
       key: "catch",
       title: "The catch",
       body: "What already exists, and where it falls short of what people asked for.",
-    },
-  ],
-} as const;
-
-export const HOW_IT_WORKS = {
-  eyebrow: "How it works",
-  title: "Demand goes in. Scored ideas come out.",
-  steps: [
-    {
-      n: "01",
-      title: "Scan",
-      body: "Every week we pull public posts from Reddit, Hacker News, and Product Hunt.",
-    },
-    {
-      n: "02",
-      title: "Cluster & score",
-      body: "Posts describing the same missing product get grouped, scored for demand, and sized for revenue.",
-    },
-    {
-      n: "03",
-      title: "You build",
-      body: "You get the idea, the numbers behind it, and links to every post that produced it.",
     },
   ],
 } as const;
@@ -267,7 +245,7 @@ export const FINAL_CTA = {
 
 export const NAV = {
   links: [
-    { label: "How it works", href: "/#how-it-works" },
+    { label: "What you get", href: "/#what-you-get" },
     { label: "Pricing", href: "/#pricing" },
     { label: "FAQ", href: "/#faq" },
   ],
@@ -280,7 +258,7 @@ export const FOOTER = {
       heading: "Product",
       links: [
         { label: "Ideas", href: "/ideas" },
-        { label: "How it works", href: "/#how-it-works" },
+        { label: "What you get", href: "/#what-you-get" },
         { label: "Pricing", href: "/#pricing" },
       ],
     },

@@ -14,24 +14,45 @@ export async function WhyEvidence() {
         intro={WHY_EVIDENCE.intro}
       />
 
-      {/* Hairline comparison table, not two cards. The right column is
-          emphasised by weight and a single rule, not by a border box. */}
+      {/* Hairline comparison, not two cards. The right column is emphasised by
+          weight and a single rule, not by a border box.
+
+          Each cell carries its own column label, `sm:sr-only`. That does two
+          jobs: below `sm` the columns stack and the labels are the only thing
+          telling a sighted reader which side a line belongs to, and at every
+          width a screen reader hears the attribution per cell. Without it the
+          claims read as a flat list of eight unattributed sentences — "Every
+          claim links to the post behind it" would sound like a general remark
+          rather than this product's column. */}
       <div className="mt-12">
-        <div className="grid grid-cols-2 gap-x-8 border-b border-border pb-3 sm:gap-x-16">
-          <h3 className="font-mono text-[0.6rem] uppercase tracking-[0.16em] text-muted-foreground">
+        <div
+          aria-hidden
+          className="hidden border-b border-border pb-3 sm:grid sm:grid-cols-2 sm:gap-x-16"
+        >
+          <span className="font-mono text-[0.6rem] uppercase tracking-[0.16em] text-muted-foreground">
             {WHY_EVIDENCE.generatedLabel}
-          </h3>
-          <h3 className="font-mono text-[0.6rem] uppercase tracking-[0.16em] text-chart-1">
+          </span>
+          <span className="font-mono text-[0.6rem] uppercase tracking-[0.16em] text-chart-1">
             {WHY_EVIDENCE.oursLabel}
-          </h3>
+          </span>
         </div>
         {WHY_EVIDENCE.rows.map((r) => (
           <div
             key={r.ours}
-            className="grid grid-cols-2 gap-x-8 border-b border-border/50 py-4 last:border-b-0 sm:gap-x-16"
+            className="grid gap-y-4 border-b border-border/50 py-4 last:border-b-0 sm:grid-cols-2 sm:gap-x-16 sm:gap-y-0"
           >
-            <p className="text-sm leading-relaxed text-muted-foreground/70">{r.generated}</p>
-            <p className="text-sm leading-relaxed">{r.ours}</p>
+            <p className="text-sm leading-relaxed text-muted-foreground/70">
+              <span className="mb-1.5 block font-mono text-[0.55rem] uppercase tracking-[0.16em] text-muted-foreground sm:sr-only">
+                {WHY_EVIDENCE.generatedLabel}
+              </span>
+              {r.generated}
+            </p>
+            <p className="text-sm leading-relaxed">
+              <span className="mb-1.5 block font-mono text-[0.55rem] uppercase tracking-[0.16em] text-chart-1 sm:sr-only">
+                {WHY_EVIDENCE.oursLabel}
+              </span>
+              {r.ours}
+            </p>
           </div>
         ))}
       </div>
@@ -40,6 +61,7 @@ export async function WhyEvidence() {
           rather than floating on their own after the hero. */}
       {stats ? (
         <div
+          role="group"
           aria-label={PROOF_BAR.ariaLabel}
           className="mt-14 grid gap-8 border-t border-border pt-8 sm:grid-cols-3"
         >

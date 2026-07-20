@@ -11,7 +11,7 @@ import { applyStatsFloor, type LandingStats } from "./stats";
 // access.ts precedent for computeAccess). A static import gets evaluated
 // eagerly as soon as this module is resolved — before getLandingStats() (or
 // even the try/catch around it) ever runs — so it would crash page.tsx ->
-// ProofBar -> landing-stats.ts before any error handling has a chance to
+// WhyEvidence -> landing-stats.ts before any error handling has a chance to
 // catch it. A dynamic import defers that evaluation to call time, inside
 // the try/catch below.
 async function fetchLandingStats(): Promise<LandingStats | null> {
@@ -55,7 +55,7 @@ export async function getLandingStats(): Promise<LandingStats | null> {
     return await cachedFetchLandingStats();
   } catch {
     // DB unreachable, import-time throw from @workspace/db, or a query
-    // error — in every case the floor rule in proof-bar.tsx already treats
+    // error — in every case the floor rule in why-evidence.tsx already treats
     // `null` as "don't render this section," so we degrade to that same
     // neutral state rather than 500ing the whole landing page.
     return null;

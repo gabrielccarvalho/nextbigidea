@@ -11,48 +11,67 @@ export function Dissection() {
 
   useEffect(() => {
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const widthQuery = window.matchMedia("(min-width: 1024px)");
+    // Height matters as much as width. The pinned card runs ~560px under a 64px
+    // sticky header at `lg:top-28`; on a short viewport (a 1024x768 laptop) its
+    // lower regions sit below the fold while pinned. Passage 04 would then
+    // highlight the competition block off-screen — the reader sees the other
+    // three regions dim and nothing appear to happen. Below this threshold the
+    // section falls back to the plain stacked layout.
+    const widthQuery = window.matchMedia("(min-width: 1024px) and (min-height: 820px)");
 
-    let observer: IntersectionObserver | null = null;
+    let frame = 0;
+    let listening = false;
 
-    const teardown = () => {
-      observer?.disconnect();
-      observer = null;
-      // Clearing the highlight is the whole point: a stale `active` would leave
-      // passages at opacity-30 and card regions dimmed in a stacked layout with
+    // Always resolves to exactly ONE step: whichever passage's midpoint sits
+    // nearest the focus line. The previous implementation used an
+    // IntersectionObserver with a narrow `-35%` band, which meant a passage
+    // could travel through without ever satisfying the threshold — so steps
+    // were skipped, and the highlight dropped out entirely in the gaps between
+    // entries. Measuring positions directly has no dead zones.
+    const pick = () => {
+      frame = 0;
+      const focus = window.innerHeight * 0.42;
+      let best: { key: SpecimenRegion; dist: number } | null = null;
+      for (const node of stepRefs.current) {
+        if (!node) continue;
+        const box = node.getBoundingClientRect();
+        const dist = Math.abs(box.top + box.height / 2 - focus);
+        const key = node.dataset.region as SpecimenRegion;
+        if (!best || dist < best.dist) best = { key, dist };
+      }
+      if (best) setActive(best.key);
+    };
+
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(pick);
+    };
+
+    const stop = () => {
+      if (listening) {
+        window.removeEventListener("scroll", onScroll);
+        window.removeEventListener("resize", onScroll);
+        listening = false;
+      }
+      if (frame) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+      }
+      // A stale `active` would leave passages dimmed in a stacked layout with
       // nothing pinned to explain why.
       setActive(null);
     };
 
     const sync = () => {
-      teardown();
+      stop();
       // Reduced motion and narrow viewports both get the composed state: every
       // passage lit, card fully readable, no scroll tracking.
       if (motionQuery.matches || !widthQuery.matches) return;
 
-      const nodes = stepRefs.current.filter((n): n is HTMLLIElement => n !== null);
-      if (nodes.length === 0) return;
-
-      observer = new IntersectionObserver(
-        (entries) => {
-          // Pick the entry nearest the vertical middle of the viewport so the
-          // highlight follows reading position rather than whichever element
-          // happened to fire last.
-          const mid = window.innerHeight / 2;
-          let best: { key: SpecimenRegion; dist: number } | null = null;
-          for (const entry of entries) {
-            if (!entry.isIntersecting) continue;
-            const box = entry.boundingClientRect;
-            const dist = Math.abs(box.top + box.height / 2 - mid);
-            const key = (entry.target as HTMLElement).dataset.region as SpecimenRegion;
-            if (!best || dist < best.dist) best = { key, dist };
-          }
-          if (best) setActive(best.key);
-        },
-        { rootMargin: "-35% 0px -35% 0px", threshold: 0 },
-      );
-
-      nodes.forEach((n) => observer?.observe(n));
+      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", onScroll, { passive: true });
+      listening = true;
+      pick();
     };
 
     sync();
@@ -62,12 +81,12 @@ export function Dissection() {
     return () => {
       motionQuery.removeEventListener("change", sync);
       widthQuery.removeEventListener("change", sync);
-      teardown();
+      stop();
     };
   }, []);
 
   return (
-    <Section id="anatomy" density="tight">
+    <Section id="what-you-get" density="tight">
       <SectionHeading
         eyebrow={SPECIMEN.eyebrow}
         title={SPECIMEN.sectionTitle}
@@ -93,7 +112,10 @@ export function Dissection() {
               // No active region means nothing has been chosen yet (mobile,
               // reduced motion, pre-scroll) — show everything.
               active={active === null || active === step.key}
-              className="pb-14"
+              // Generous travel at lg so each step holds the highlight long
+              // enough to read before the next one takes it. Below lg the
+              // section is a plain stack and needs no dwell.
+              className="pb-14 lg:pb-[38vh] lg:last:pb-0"
             />
           ))}
         </Rail>

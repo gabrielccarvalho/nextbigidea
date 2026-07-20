@@ -6,10 +6,48 @@ export type SpecimenRegion = "score" | "numbers" | "receipts" | "catch" | null;
 
 const SOURCE_COLOR = new Map(SOURCES.map((s) => [s.name, s.color]));
 
-// Dimming the inactive regions rather than brightening the active one keeps the
-// card readable when nothing is highlighted (mobile, reduced motion, no JS).
-function region(active: SpecimenRegion, self: SpecimenRegion) {
-  return cn("transition-opacity duration-500", active && active !== self && "opacity-40");
+// When `active` is null — mobile, reduced motion, no JS, pre-scroll — every
+// region renders at full strength and nothing is emphasised. Emphasis is
+// additive on top of that baseline, so the card is never left dimmed with
+// nothing lit.
+//
+// `origin` controls where the scale grows from, so a region expands into its
+// own whitespace instead of drifting across the card. Transforms don't reflow,
+// so scaling can't shift the regions around it.
+const EASE = "transition-all duration-500 ease-out";
+
+// Only `scale` on regions that are INSET from the card's edges. The stat row,
+// evidence list and competition block are all full-bleed, and the card is
+// `overflow-hidden` — scaling them pushes their edges past the card and gets
+// them clipped, which reads as a rendering bug rather than emphasis.
+function region(
+  active: SpecimenRegion,
+  self: SpecimenRegion,
+  opts?: { scale?: string },
+) {
+  // `null` = mobile, reduced motion, no JS, pre-scroll. Everything at full
+  // strength, nothing emphasised — the card is never left dimmed with nothing lit.
+  if (active === null) return EASE;
+  if (active !== self) {
+    // Inactive regions recede but stay legible: a spotlight, not a blackout.
+    return cn(EASE, "opacity-25");
+  }
+  return cn(EASE, "opacity-100", opts?.scale && [opts.scale, "scale-[1.06]"]);
+}
+
+// Full-bleed blocks can't use scale (they'd overflow the card and be clipped)
+// and a 1px ring is invisible at this contrast. An inset left accent bar reads
+// clearly on the dark card and costs no layout shift — a real `border-l` would
+// push the content 2px sideways every time the highlight moved.
+//
+// `tint` is off for the stat row: that grid paints its hairline dividers with
+// `gap-px` over `bg-border`, so overriding the background erases them.
+function panel(active: SpecimenRegion, self: SpecimenRegion, tint = true) {
+  if (active !== self) return false;
+  return cn(
+    "shadow-[inset_2px_0_0_0_var(--color-chart-1)]",
+    tint && "bg-chart-1/[0.05]",
+  );
 }
 
 export function SpecimenCard({ highlight = null }: { highlight?: SpecimenRegion }) {
@@ -31,7 +69,12 @@ export function SpecimenCard({ highlight = null }: { highlight?: SpecimenRegion 
           </p>
         </div>
 
-        <div className={cn("shrink-0 text-right", region(highlight, "score"))}>
+        <div
+          className={cn(
+            "shrink-0 text-right",
+            region(highlight, "score", { scale: "origin-top-right" }),
+          )}
+        >
           <div className="font-mono text-4xl font-bold leading-none tracking-tight text-chart-1 tabular-nums sm:text-5xl">
             {idea.demandScore}
           </div>
@@ -48,6 +91,7 @@ export function SpecimenCard({ highlight = null }: { highlight?: SpecimenRegion 
         className={cn(
           "grid grid-cols-3 gap-px border-y border-border bg-border",
           region(highlight, "numbers"),
+          panel(highlight, "numbers", false),
         )}
       >
         {[
@@ -67,7 +111,13 @@ export function SpecimenCard({ highlight = null }: { highlight?: SpecimenRegion 
         ))}
       </dl>
 
-      <div className={cn("p-6", region(highlight, "receipts"))}>
+      <div
+        className={cn(
+          "p-6",
+          region(highlight, "receipts"),
+          panel(highlight, "receipts"),
+        )}
+      >
         <h4 className="font-mono text-[0.55rem] uppercase tracking-[0.2em] text-muted-foreground">
           {evidenceHeading}
         </h4>
@@ -94,7 +144,13 @@ export function SpecimenCard({ highlight = null }: { highlight?: SpecimenRegion 
         </ul>
       </div>
 
-      <div className={cn("border-t border-border p-6", region(highlight, "catch"))}>
+      <div
+        className={cn(
+          "border-t border-border p-6",
+          region(highlight, "catch"),
+          panel(highlight, "catch"),
+        )}
+      >
         <h4 className="font-mono text-[0.55rem] uppercase tracking-[0.2em] text-muted-foreground">
           {labels.competition}
         </h4>
