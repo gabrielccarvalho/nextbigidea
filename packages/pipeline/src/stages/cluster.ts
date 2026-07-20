@@ -9,7 +9,7 @@ export { slugify, parseThemes } from "./themes";
 async function findSimilarIdea(themeTitle: string): Promise<number | null> {
   // pg_trgm similarity on the keywords column; threshold 0.3.
   const rows = await db
-    .select({ id: ideas.id, sim: sql<number>`similarity(${ideas.keywords}, ${themeTitle})` })
+    .select({ id: ideas.id })
     .from(ideas)
     .where(sql`similarity(${ideas.keywords}, ${themeTitle}) > 0.3`)
     .orderBy(sql`similarity(${ideas.keywords}, ${themeTitle}) DESC`)

@@ -4,13 +4,17 @@
 // Mirrors the dedupe.ts / normalize.ts split from Task 7.
 
 export function slugify(title: string): string {
-  return title
+  const slug = title
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, "")
     .trim()
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
+  // A punctuation-only title ("???", "!!!") reduces to "". `ideas.slug` is
+  // UNIQUE, so an empty slug collides the moment a second such title appears.
+  // Never hand back an empty slug — callers shouldn't have to know this.
+  return slug || "idea";
 }
 
 export function parseThemes(text: string): { title: string; postKeys: string[] }[] {
