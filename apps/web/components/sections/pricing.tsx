@@ -4,7 +4,7 @@ import { PaywallCta } from "@/components/paywall-cta";
 
 export function Pricing() {
   // The landing page intentionally avoids a session lookup. The `authenticated` prop
-  // only changes the CTA's button label (e.g., "Sign in to subscribe" vs "Subscribe now"),
+  // only changes the CTA's button label (e.g., "Sign in to unlock" vs "Unlock now"),
   // while the checkout call itself is unconditional. A per-request session read would
   // force the entire marketing homepage out of static generation, so we pass false here.
   // If this changes in the future, carefully consider the static rendering implications.
@@ -61,7 +61,7 @@ export function Pricing() {
           </ul>
 
           <div className="mt-6">
-            <PaywallCta authenticated={false} />
+            <PaywallCta authenticated={false} variant="embedded" />
           </div>
         </div>
       </div>

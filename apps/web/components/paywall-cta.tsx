@@ -2,7 +2,13 @@
 import { useState } from "react";
 import { PAYWALL_CTA, PRICING } from "@/lib/content";
 
-export function PaywallCta({ authenticated }: { authenticated: boolean }) {
+export function PaywallCta({
+  authenticated,
+  variant = "standalone",
+}: {
+  authenticated: boolean;
+  variant?: "standalone" | "embedded";
+}) {
   const [loading, setLoading] = useState(false);
 
   async function buy() {
@@ -30,12 +36,21 @@ export function PaywallCta({ authenticated }: { authenticated: boolean }) {
     window.location.href = "/account";
   }
 
+  // "embedded" is used when this CTA sits inside a card that already states the
+  // price and renewal terms (e.g. the pricing section) — rendering the heading
+  // and subtext again there would duplicate that disclosure. "standalone" (the
+  // default) keeps the full self-contained appearance used on /ideas,
+  // /ideas/[slug], and /account.
   return (
     <div className="rounded-lg border bg-muted/30 p-6 text-center">
-      <h2 className="text-lg font-semibold">
-        {PAYWALL_CTA.headlinePrefix} — {PRICING.amountBRL}/{PRICING.term}
-      </h2>
-      <p className="mt-1 text-sm text-muted-foreground">{PAYWALL_CTA.subtext}</p>
+      {variant === "standalone" && (
+        <>
+          <h2 className="text-lg font-semibold">
+            {PAYWALL_CTA.headlinePrefix} — {PRICING.amountBRL}/{PRICING.term}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">{PAYWALL_CTA.subtext}</p>
+        </>
+      )}
       <button
         onClick={buy}
         disabled={loading}
