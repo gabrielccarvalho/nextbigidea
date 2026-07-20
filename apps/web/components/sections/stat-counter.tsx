@@ -13,12 +13,14 @@ export function StatCounter({ value, label }: { value: number; label: string }) 
     const node = ref.current;
     if (!node) return;
 
+    let cancelled = false;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry?.isIntersecting) return;
         observer.disconnect();
         const start = performance.now();
         const tick = (now: number) => {
+          if (cancelled) return;
           const p = Math.min(1, (now - start) / 1200);
           setDisplay(Math.round(value * (1 - Math.pow(1 - p, 3))));
           if (p < 1) requestAnimationFrame(tick);
@@ -30,7 +32,10 @@ export function StatCounter({ value, label }: { value: number; label: string }) 
     );
 
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
   }, [value]);
 
   return (
