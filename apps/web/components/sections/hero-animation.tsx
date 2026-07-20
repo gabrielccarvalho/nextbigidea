@@ -72,6 +72,16 @@ export function HeroAnimation() {
     const card = cardRef.current;
     if (!stage || !core || !ring || !card) return;
 
+    // Narrow viewports push the radially-spawned post cards outside the
+    // frame at the desktop radius. Read window width here, inside the
+    // effect, never during render — reading it in the render body would
+    // desync the server-rendered markup from the client's first paint and
+    // trigger a hydration mismatch.
+    const isNarrow = window.innerWidth < 640;
+    const posts = isNarrow ? SAMPLE_POSTS.slice(0, 5) : SAMPLE_POSTS;
+    const radiusXMultiplier = isNarrow ? 0.45 : 0.6;
+    const radiusYMultiplier = isNarrow ? 0.5 : 0.7;
+
     const timers: ReturnType<typeof setTimeout>[] = [];
     const spawned: HTMLElement[] = [];
     let cancelled = false;
@@ -84,8 +94,8 @@ export function HeroAnimation() {
     const spawnPost = (text: string, i: number, total: number) => {
       const source = SOURCES[i % SOURCES.length]!;
       const angle = (i / total) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
-      const rx = Math.max(stage.clientWidth * 0.6, 300) + Math.random() * 70;
-      const ry = Math.max(stage.clientHeight * 0.7, 220) + Math.random() * 50;
+      const rx = Math.max(stage.clientWidth * radiusXMultiplier, 300) + Math.random() * 70;
+      const ry = Math.max(stage.clientHeight * radiusYMultiplier, 220) + Math.random() * 50;
       const x0 = Math.cos(angle) * rx;
       const y0 = Math.sin(angle) * ry;
       const rot = (Math.random() - 0.5) * 16;
@@ -164,7 +174,7 @@ export function HeroAnimation() {
       core.style.opacity = "0";
       ring.style.opacity = "0";
 
-      SAMPLE_POSTS.forEach((text, i) => spawnPost(text, i, SAMPLE_POSTS.length));
+      posts.forEach((text, i) => spawnPost(text, i, posts.length));
 
       after(() => {
         setPhase("condensing");
