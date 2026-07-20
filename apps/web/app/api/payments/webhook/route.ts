@@ -48,21 +48,36 @@ export async function POST(req: NextRequest) {
         .where(eq(purchases.providerChargeId, event.providerChargeId))
         .limit(1);
       if (existing.length === 0) {
-        // onConflictDoNothing: purchases_provider_charge_uq makes idempotency a database
-        // guarantee — a concurrent retry that loses this race is a no-op, not a 500 that
-        // makes the provider retry forever.
-        await db
-          .insert(purchases)
-          .values({
-            userId: event.externalId,
-            provider: provider.name,
-            providerChargeId: event.providerChargeId,
-            amountCents: PRICE_CENTS,
-            currency: "BRL",
-            status: "paid",
-            paidAt: new Date(),
-          })
-          .onConflictDoNothing();
+        try {
+          // onConflictDoNothing: purchases_provider_charge_uq makes idempotency a database
+          // guarantee — a concurrent retry that loses this race is a no-op, not a 500 that
+          // makes the provider retry forever. The explicit target keeps that intent legible
+          // if another unique constraint is ever added to this table.
+          await db
+            .insert(purchases)
+            .values({
+              userId: event.externalId,
+              provider: provider.name,
+              providerChargeId: event.providerChargeId,
+              amountCents: PRICE_CENTS,
+              currency: "BRL",
+              status: "paid",
+              paidAt: new Date(),
+            })
+            .onConflictDoNothing({ target: purchases.providerChargeId });
+        } catch (err) {
+          // `externalId` is a FK to user.id. A stale or deleted user makes this throw, and
+          // a 500 would make AbacatePay retry the same doomed event indefinitely. The event
+          // IS verified at this point — it just can't be resolved to a user — so acknowledge
+          // it and surface the problem in logs instead of looping forever.
+          // NOTE: a verification failure still returns 400 above; only this
+          // post-verification, known-unresolvable insert degrades to a 200.
+          console.error(
+            `[payments] verified webhook for charge ${event.providerChargeId} could not be ` +
+              `resolved to user ${event.externalId}:`,
+            err,
+          );
+        }
       }
     }
   }

@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { constantTimeEqual, parseAbacateEvent, verifyHmac } from "./abacatepay";
+import { AbacatePayProvider, constantTimeEqual, parseAbacateEvent, verifyHmac } from "./abacatepay";
 
 const SECRET = "whsec_test";
 
@@ -127,5 +127,63 @@ describe("parseAbacateEvent", () => {
   it("returns null for a non-object body", () => {
     expect(parseAbacateEvent(null)).toBeNull();
     expect(parseAbacateEvent("checkout.completed")).toBeNull();
+  });
+});
+
+// The three guards above are each tested in isolation. These tests cover their
+// COMPOSITION and ORDERING inside verifyAndParseWebhook, which is what actually
+// decides whether a callback can grant someone lifetime access.
+describe("AbacatePayProvider.verifyAndParseWebhook", () => {
+  const HMAC_KEY = "hmac_public_test_key";
+  const URL_SECRET = "url_secret_test";
+  const BODY = JSON.stringify({
+    event: "checkout.completed",
+    data: { checkout: { id: "chk_123", externalId: "user_abc" } },
+  });
+
+  function provider(webhookUrlSecret = URL_SECRET) {
+    // (apiKey, productId, hmacKey, webhookUrlSecret)
+    return new AbacatePayProvider("key_test", "prod_test", HMAC_KEY, webhookUrlSecret);
+  }
+
+  it("accepts a request with both the correct URL secret and a correct signature", () => {
+    const event = provider().verifyAndParseWebhook(BODY, sign(BODY, HMAC_KEY), URL_SECRET);
+    expect(event).toEqual({ type: "paid", providerChargeId: "chk_123", externalId: "user_abc" });
+  });
+
+  // THE case the whole design rests on. AbacatePay's HMAC key is published in their
+  // docs and shared by every merchant, so anyone can produce a valid signature. If a
+  // correct HMAC could bypass the URL-secret gate, the webhook would be forgeable by
+  // anyone who read the docs, and they could grant themselves lifetime access free.
+  it("rejects a perfectly signed request bearing the WRONG URL secret", () => {
+    const validSignature = sign(BODY, HMAC_KEY);
+    expect(provider().verifyAndParseWebhook(BODY, validSignature, "wrong_secret")).toBeNull();
+  });
+
+  it("rejects a request with the correct URL secret but a wrong signature", () => {
+    expect(provider().verifyAndParseWebhook(BODY, sign(BODY, "other_key"), URL_SECRET)).toBeNull();
+  });
+
+  it("rejects when no URL secret is supplied at all", () => {
+    expect(provider().verifyAndParseWebhook(BODY, sign(BODY, HMAC_KEY), null)).toBeNull();
+    expect(provider().verifyAndParseWebhook(BODY, sign(BODY, HMAC_KEY), undefined)).toBeNull();
+  });
+
+  // Fails CLOSED on a misconfigured deploy: an unset ABACATEPAY_WEBHOOK_SECRET must not
+  // become "no secret required", which an attacker would trigger with `?webhookSecret=`.
+  it("rejects everything when the configured webhook secret is empty", () => {
+    const unconfigured = provider("");
+    expect(unconfigured.verifyAndParseWebhook(BODY, sign(BODY, HMAC_KEY), "")).toBeNull();
+    expect(unconfigured.verifyAndParseWebhook(BODY, sign(BODY, HMAC_KEY), URL_SECRET)).toBeNull();
+  });
+
+  it("returns null rather than throwing on a malformed body that passes both gates", () => {
+    const malformed = "{not json";
+    const event = provider().verifyAndParseWebhook(
+      malformed,
+      sign(malformed, HMAC_KEY),
+      URL_SECRET,
+    );
+    expect(event).toBeNull();
   });
 });

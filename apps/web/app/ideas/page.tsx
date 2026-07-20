@@ -12,7 +12,7 @@ export default async function IdeasPage() {
     <main className="mx-auto max-w-4xl px-4 py-10">
       <h1 className="text-2xl font-bold">SaaS demand ideas</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Sourced from Reddit, Hacker News, Product Hunt and more. Updated weekly.
+        Sourced from Reddit, Hacker News, and Product Hunt. Updated weekly.
       </p>
 
       {!access.hasFullAccess && (
