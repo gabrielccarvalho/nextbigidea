@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { PAYWALL_CTA, PRICING } from "@/lib/content";
 
 export function PaywallCta({ authenticated }: { authenticated: boolean }) {
   const [loading, setLoading] = useState(false);
@@ -31,16 +32,16 @@ export function PaywallCta({ authenticated }: { authenticated: boolean }) {
 
   return (
     <div className="rounded-lg border bg-muted/30 p-6 text-center">
-      <h2 className="text-lg font-semibold">Unlock every idea — R$110/year</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Card payment, renews yearly. Cancel any time.
-      </p>
+      <h2 className="text-lg font-semibold">
+        {PAYWALL_CTA.headlinePrefix} — {PRICING.amountBRL}/{PRICING.term}
+      </h2>
+      <p className="mt-1 text-sm text-muted-foreground">{PAYWALL_CTA.subtext}</p>
       <button
         onClick={buy}
         disabled={loading}
         className="mt-4 rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background disabled:opacity-50"
       >
-        {loading ? "Redirecting…" : authenticated ? "Subscribe now" : "Sign in to subscribe"}
+        {loading ? "Redirecting…" : authenticated ? PAYWALL_CTA.ctaAuthenticated : PAYWALL_CTA.ctaSignedOut}
       </button>
     </div>
   );

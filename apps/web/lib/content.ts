@@ -98,6 +98,27 @@ export const WHY_EVIDENCE = {
   oursLabel: "NextBigThing",
 } as const;
 
+export const PAYWALL_CTA = {
+  headlinePrefix: "Unlock every idea",
+  subtext: "Card payment, renews annually. Cancel any time — access runs to the end of your paid period.",
+  ctaAuthenticated: "Unlock now",
+  ctaSignedOut: "Sign in to unlock",
+} as const;
+
+export const IDEAS_PAGE = {
+  title: "SaaS demand ideas",
+  subhead: "Sourced from Reddit, Hacker News, and Product Hunt. New ideas every month.",
+} as const;
+
+export const IDEA_DETAIL = {
+  lockedMessage:
+    "This idea is locked. Subscribe to see the demand evidence, sources, MRR estimate, and validation signals.",
+} as const;
+
+export const ACCOUNT_PAGE = {
+  accessActiveHeading: "Access active",
+} as const;
+
 export const PRICING_SECTION = {
   eyebrow: "Pricing",
   title: "One plan. Cancel whenever.",
