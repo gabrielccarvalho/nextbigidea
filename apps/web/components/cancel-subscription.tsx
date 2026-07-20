@@ -45,7 +45,7 @@ export function CancelSubscription() {
         <button
           onClick={confirmCancel}
           disabled={status === "loading"}
-          className="rounded-md bg-destructive px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground disabled:opacity-50"
         >
           {status === "loading" ? "Cancelling…" : "Yes, cancel my subscription"}
         </button>

@@ -376,6 +376,37 @@ export async function POST(req: NextRequest) {
     const userId = owner[0]!.userId;
     await db.transaction(async (tx) => {
       await lockUser(tx, userId);
+
+      // FIX (the cancellation-resurrection hole): webhook delivery is explicitly unordered, so a
+      // `subscription.renewed` already in flight can land AFTER the `subscription.cancelled` for
+      // the same subscription. The `cancelled` branch has already returned 200 by then and will
+      // never be redelivered to repair anything written afterwards, so a fresh row inserted here
+      // with `cancelled_at = NULL` — and, being the newest, the FURTHEST `period_end` — silently
+      // resurrects the subscription: `/account` renders "Subscription active" with a Cancel button
+      // for a subscription that is dead at the provider, and the checkout guard's
+      // `paid ∧ future ∧ cancelled_at IS NULL` predicate returns `alreadyActive`, blocking the very
+      // resubscribe this feature exists to enable. Carry the cancellation forward instead.
+      //
+      // Read under the lock, so this is serialized against the `cancelled` branch (which takes the
+      // same user's advisory lock). Both orderings are therefore correct: if `cancelled` committed
+      // first, this read sees it and stamps the new row; if it commits after, its own UPDATE —
+      // guarded by `isNull(cancelledAt)` — matches this newly inserted row and stamps it there.
+      // Note the symmetric `cancelled`-before-`subscription.completed` ordering is already handled
+      // by that branch's 503-and-redeliver path; only `renewed` was exposed.
+      const cancelled = await tx
+        .select({
+          cancelledAt: purchases.cancelledAt,
+          cancelledDueTo: purchases.cancelledDueTo,
+        })
+        .from(purchases)
+        .where(
+          and(
+            eq(purchases.providerSubscriptionId, event.providerSubscriptionId),
+            isNotNull(purchases.cancelledAt),
+          ),
+        )
+        .limit(1);
+
       const period = await nextPeriodFor(tx, userId);
       // A new row per renewal. The unique index on provider_charge_id makes a redelivered
       // renewal a no-op, so the period can never be extended twice for one charge.
@@ -392,6 +423,11 @@ export async function POST(req: NextRequest) {
           paidAt: now,
           periodStart: period.periodStart,
           periodEnd: period.periodEnd,
+          // Inherited, never invented: only ever copied from a sibling row that already carries a
+          // cancellation. Absent one this is `null`, exactly as before. This writes no `status` and
+          // no period column, so carrying the flag forward still cannot revoke a day of access.
+          cancelledAt: cancelled[0]?.cancelledAt ?? null,
+          cancelledDueTo: cancelled[0]?.cancelledDueTo ?? null,
         })
         .onConflictDoNothing({ target: purchases.providerChargeId });
     });
@@ -542,11 +578,28 @@ export async function POST(req: NextRequest) {
         })
         .where(
           and(
+            // FIX: scope the UPDATE to the user whose advisory lock is held. The lock is keyed on
+            // `owner[0].userId`, but this UPDATE used to match on `providerSubscriptionId` alone —
+            // and there is no unique constraint on that column, only a plain index. If two users'
+            // rows ever shared a subscription id, the lock would cover one user while another
+            // user's rows were written, breaking the "one lock per user serializes every write for
+            // that user" invariant this file rests on. Unreachable today; this is hardening.
+            eq(purchases.userId, userId),
             eq(purchases.providerSubscriptionId, event.providerSubscriptionId),
             isNull(purchases.cancelledAt),
           ),
         );
     });
+
+    // FIX: log on the success path. Every other money-moving branch leaves a trail, and a previous
+    // commit removed this one's, leaving cancellations observable only when they FAILED (the 503
+    // above). Placed after COMMIT so a rolled-back transaction never produces a log claiming a
+    // cancellation was recorded. States the access guarantee explicitly, because "cancelled" is
+    // routinely misread as "revoked" and this branch deliberately writes no period column.
+    console.info(
+      `[payments] recorded cancellation for subscription ${event.providerSubscriptionId} ` +
+        `(user ${userId}); access is RETAINED until period_end`,
+    );
   } else if (event.type === "payment_failed") {
     // No access change while AbacatePay retries. If every retry fails it auto-cancels, and
     // the branch above handles that.

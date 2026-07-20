@@ -26,6 +26,7 @@
     --color-input: var(--input);
     --color-border: var(--border);
     --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
     --color-accent-foreground: var(--accent-foreground);
     --color-accent: var(--accent);
     --color-muted-foreground: var(--muted-foreground);
@@ -66,6 +67,9 @@
     --accent: oklch(0.967 0.001 286.375);
     --accent-foreground: oklch(0.21 0.006 285.885);
     --destructive: oklch(0.577 0.245 27.325);
+    /* White on this red is 4.76:1 — passes WCAG AA for normal text. Kept at pure white so the
+       light theme renders byte-identically to the hardcoded `text-white` this token replaces. */
+    --destructive-foreground: oklch(1 0 0);
     --border: oklch(0.92 0.004 286.32);
     --input: oklch(0.92 0.004 286.32);
     --ring: oklch(0.705 0.015 286.067);
@@ -101,6 +105,10 @@
     --accent: oklch(0.274 0.006 286.033);
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
+    /* The dark destructive is a LIGHT red (#ff6467): white on it is only 2.89:1, far under the
+       4.5:1 AA needs for normal text (the cancel button is 14px, not WCAG large text). Flipping to
+       the palette's near-black gives 6.88:1. */
+    --destructive-foreground: oklch(0.141 0.005 285.823);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.552 0.016 285.938);
