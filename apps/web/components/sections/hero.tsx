@@ -34,7 +34,9 @@ export function Hero() {
           field the pitch sits on — offset below the pitch's measured bottom
           edge (~410px at lg/xl/2xl, the copy doesn't reflow above lg) so the
           stage's overflow-hidden clip guarantees no card can render above the
-          CTA row, however far it drifts from the stage's center. */}
+          CTA row, however far it drifts from the stage's center. Keep this
+          offset >= the measured pitch bottom if the stage height below ever
+          changes — it's what guarantees no overlap. */}
       <div
         aria-hidden
         className="pointer-events-none relative mt-6 lg:absolute lg:inset-x-0 lg:top-[440px] lg:-z-10 lg:mt-0"
@@ -43,11 +45,13 @@ export function Hero() {
       </div>
 
       {/* Reserves the field's height at lg only — below that the field is in
-          normal flow and takes its own space. 611px = (440px offset + 580px
-          stage height) - ~410px pitch bottom, so the section's flow height
-          exactly covers the field before pb-8 closes the gap to the next
-          section. */}
-      <div aria-hidden className="hidden lg:block lg:h-[611px]" />
+          normal flow and takes its own space. 431px = (440px offset + 400px
+          stage height, shortened so the composed idea card sits close to the
+          pitch instead of leaving a dead band) - ~410px pitch bottom, so the
+          section's flow height covers the field before pb-8 closes the gap
+          to the next section. Must track hero-animation.tsx's lg:h-[*] stage
+          height. */}
+      <div aria-hidden className="hidden lg:block lg:h-[431px]" />
     </section>
   );
 }

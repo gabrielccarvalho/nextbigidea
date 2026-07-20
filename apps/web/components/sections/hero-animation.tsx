@@ -241,7 +241,7 @@ export function HeroAnimation() {
     <div
       ref={stageRef}
       aria-hidden="true"
-      className="relative h-[420px] overflow-hidden sm:h-[520px] lg:h-[580px]"
+      className="relative h-[420px] overflow-hidden sm:h-[520px] lg:h-[400px]"
       style={{
         background:
           "radial-gradient(circle at 50% 50%, color-mix(in oklch, var(--primary) 12%, var(--background)) 0%, var(--background) 62%)",
