@@ -2916,8 +2916,11 @@ git commit -m "feat(web): add PaymentProvider interface, AbacatePay adapter, che
 ## Task 14: Access gating helper + ideas directory page
 
 **Files:**
-- Create: `apps/web/lib/access.ts`
+- Create: `apps/web/lib/access.ts` (pure `computeAccess` — NO `@workspace/db` import)
+- Create: `apps/web/lib/viewer-access.ts` (DB-backed `getViewerAccess`)
 - Test: `apps/web/lib/access.test.ts`
+
+> Sixth instance of the pure/DB split (Tasks 7, 9, 10, 11, and here). The db client throws at import without `DATABASE_URL`, so the pure tested function must live in its own module.
 - Create: `apps/web/components/idea-card.tsx`, `apps/web/components/locked-teaser.tsx`, `apps/web/components/paywall-cta.tsx`
 - Create: `apps/web/app/ideas/page.tsx`
 
