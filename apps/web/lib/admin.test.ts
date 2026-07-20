@@ -15,4 +15,13 @@ describe("isAdmin", () => {
   it("tolerates spaces around ids", () => {
     expect(isAdmin("u2", "u1, u2 , u3")).toBe(true);
   });
+  // THE case that actually exercises both guards together. Neither the null-id
+  // test nor the empty-allowlist test above can catch a removed guard on its
+  // own: ["u1"].includes(null) and [""].includes("u1") are both false anyway.
+  // But with BOTH guards gone, "" splits to [""] and [""].includes("") is TRUE —
+  // an unconfigured deploy would grant admin to an empty user id. This is the
+  // only assertion here that fails if either guard is deleted.
+  it("denies an empty user id against an empty allowlist", () => {
+    expect(isAdmin("", "")).toBe(false);
+  });
 });
