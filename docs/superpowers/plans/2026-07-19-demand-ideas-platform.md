@@ -1257,7 +1257,9 @@ git commit -m "feat(pipeline): add degradable X and LinkedIn Playwright adapters
 
 **Interfaces:**
 - Consumes: `db`, `rawPosts` from `@workspace/db`; `RawPost` from `../types`.
-- Produces: `export function dedupeInMemory(posts: RawPost[]): RawPost[]` (pure — drops duplicate `(source, sourcePostId)` within a batch, keeping the first); `export async function upsertRawPosts(posts: RawPost[], runId: number): Promise<number[]>` (returns inserted/existing row ids in input order; uses `onConflictDoUpdate` on the `(source, sourcePostId)` unique index).
+- Produces: `export function dedupeInMemory(posts: RawPost[]): RawPost[]` (pure — drops duplicate `(source, sourcePostId)` within a batch, keeping the first); `export async function upsertRawPosts(posts: RawPost[], runId: number): Promise<Map<string, number>>` — returns a map from `` `${source}:${sourcePostId}` `` to DB row id, using `onConflictDoUpdate` on the `(source, sourcePostId)` unique index.
+
+> **Why a keyed Map and not a positional array:** `dedupeInMemory` can drop entries, so the returned list would be SHORTER than the caller's input. Any caller zipping the two by index (`inputs.map((p, i) => [key(p), ids[i]])`) would silently misalign and attach evidence rows to the wrong posts. Returning a Map keyed by the same composite key the dedupe uses makes that class of bug unrepresentable.
 
 - [ ] **Step 1: Write the failing test (pure function only — DB upsert is integration, tested via run)**
 
@@ -1307,10 +1309,15 @@ export function dedupeInMemory(posts: RawPost[]): RawPost[] {
   return out;
 }
 
-// Upsert each post; return the DB row id for every input post (in order).
-export async function upsertRawPosts(posts: RawPost[], runId: number): Promise<number[]> {
+// Upsert each post and return a map from `${source}:${sourcePostId}` -> DB row id.
+// Keyed rather than positional on purpose: dedupeInMemory can drop entries, so a
+// positional array would silently misalign with the caller's input list.
+export async function upsertRawPosts(
+  posts: RawPost[],
+  runId: number,
+): Promise<Map<string, number>> {
   const deduped = dedupeInMemory(posts);
-  if (deduped.length === 0) return [];
+  if (deduped.length === 0) return new Map();
   const rows: NewRawPost[] = deduped.map((p) => ({
     source: p.source,
     sourcePostId: p.sourcePostId,
@@ -1331,19 +1338,19 @@ export async function upsertRawPosts(posts: RawPost[], runId: number): Promise<n
       // row refreshes with ITS OWN metrics. Never reference a single row here.
       set: { metrics: sql`excluded.metrics`, fetchedAt: new Date() },
     });
-  // Re-read ids for the batch.
-  const keys = deduped.map((p) => ({ source: p.source, id: p.sourcePostId }));
+  // Re-read ids for the batch. Filtering on sourcePostId alone can over-fetch rows
+  // from other sources that happen to share an id; the composite map key keeps
+  // those distinct, so they're simply never looked up.
   const found = await db
     .select({ id: rawPosts.id, source: rawPosts.source, sourcePostId: rawPosts.sourcePostId })
     .from(rawPosts)
     .where(
       inArray(
         rawPosts.sourcePostId,
-        keys.map((k) => k.id),
+        deduped.map((p) => p.sourcePostId),
       ),
     );
-  const byKey = new Map(found.map((r) => [`${r.source}:${r.sourcePostId}`, r.id]));
-  return deduped.map((p) => byKey.get(`${p.source}:${p.sourcePostId}`)!).filter((x) => x != null);
+  return new Map(found.map((r) => [`${r.source}:${r.sourcePostId}`, r.id]));
 }
 ```
 
@@ -1965,8 +1972,10 @@ export async function runPipeline(): Promise<PipelineRunReport> {
   }
 
   // 2. Normalize + dedupe + persist raw posts.
-  const postIds = await upsertRawPosts(collected, runId);
-  const idByKey = new Map(collected.map((p, i) => [`${p.source}:${p.sourcePostId}`, postIds[i]]));
+  // upsertRawPosts returns a Map keyed by `${source}:${sourcePostId}` — do NOT
+  // rebuild this by zipping `collected` against a positional array, since dedupe
+  // can drop entries and the indices would misalign.
+  const idByKey = await upsertRawPosts(collected, runId);
 
   // 3. Relevance filter (cost-gated).
   const client = new HaikuClient(env.anthropicApiKey);
