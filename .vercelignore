@@ -4,6 +4,15 @@
 # `vercel deploy --prod` fail after uploading 434MB. Everything here is either rebuilt on
 # the build machine or irrelevant to it.
 
+# Local env files. These MUST never ship: Next.js loads apps/web/.env inside the
+# deployment, and NEON_LOCAL_PROXY=true is not set in Vercel, so nothing overrode it —
+# client.ts pointed the Neon driver at localhost:4444 and every DB query died with
+# "fetch failed". They also carry local dev secrets that have no business in a build
+# artifact. Real config comes from Vercel's environment variables.
+.env
+.env.*
+!.env.example
+
 # Dependencies and build caches — reinstalled/regenerated during the build
 node_modules
 .turbo
