@@ -719,7 +719,7 @@ In `apps/web/.env.example`, replace the three comment lines above `ABACATEPAY_PR
 ```
 # Create the R$110/year subscription Product in AbacatePay FIRST, then paste its id here.
 # It MUST be created with cycle="ANNUALLY" — /subscriptions/create rejects one-off products.
-#   POST /v2/products/create {"name":"Next Big Thing — Acesso Anual","price":11000,
+#   POST /v2/products/create {"name":"NextBigIdea — Acesso Anual","price":11000,
 #     "currency":"BRL","cycle":"ANNUALLY"}
 # createCheckout throws until this is set, so every checkout would 500.
 ```

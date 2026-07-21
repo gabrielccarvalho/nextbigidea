@@ -126,7 +126,7 @@ Answers the objection that kills this category — *"why wouldn't I just ask an 
 
 Two columns:
 
-| Generated idea lists | NextBigThing |
+| Generated idea lists | NextBigIdea |
 |---|---|
 | Plausible-sounding ideas invented on demand | Ideas extracted from posts real people wrote |
 | No way to tell if anyone wants it | Ask counts from named sources |
@@ -228,7 +228,7 @@ Structure ported from octobot: a shared `<LegalPage title intro>` wrapper, plain
 
 ```
 CONTACT_EMAIL      = "gabrielccarvalhopro@gmail.com"
-COMPANY_NAME       = "NextBigThing"
+COMPANY_NAME       = "NextBigIdea"
 COMPANY_LEGAL_NAME = "GABRIEL CAMPOS DOS SANTOS P DE CARVALHO LTDA"
 COMPANY_CNPJ       = "58.378.419/0001-61"
 GOVERNING_LAW      = "the Federative Republic of Brazil"
@@ -279,7 +279,7 @@ The lifetime→annual migration left stale copy that this work must fix, or the 
 
 `app/layout.tsx` gains full metadata, following octobot:
 
-- `metadataBase`, title template `"%s · NextBigThing"`, description
+- `metadataBase`, title template `"%s · NextBigIdea"`, description
 - OpenGraph + Twitter card with a versioned `/og.png`, descriptive alt text
 - `app/robots.ts` and `app/sitemap.ts` as route handlers
 - Per-page `metadata` on `/terms` and `/privacy`
@@ -355,6 +355,6 @@ apps/web/lib/payments/provider.ts     comment
 
 ## Open items
 
-- **Brand name is assumed.** `COMPANY_NAME = "NextBigThing"` is inferred from the repo name `next.bigthing`; no file in the repo states the customer-facing brand. It appears in the wordmark, page titles, OG tags, and both legal pages. **Confirm before implementation** — it is cheap to change now and tedious later.
+- **Brand name is assumed.** `COMPANY_NAME = "NextBigIdea"` is inferred from the repo name `nextbigidea`; no file in the repo states the customer-facing brand. It appears in the wordmark, page titles, OG tags, and both legal pages. **Confirm before implementation** — it is cheap to change now and tedious later.
 - **`og.png` asset** — needs to be designed or generated. Not blocking implementation; the metadata reference can land first.
 - **Refund mechanics** — the 7-day CDC refund is stated as policy, but whether refunds are processed manually through AbacatePay or automated is undecided. Manual is acceptable at current volume and is what the copy will imply.

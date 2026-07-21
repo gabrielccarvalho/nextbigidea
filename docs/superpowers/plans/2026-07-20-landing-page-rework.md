@@ -89,7 +89,7 @@ Retires `next-themes` from the web app, hardcodes `dark`, collapses the light to
 - [ ] **Step 1: Find every consumer of the theme provider**
 
 ```bash
-cd /Users/gabe/www/personal/next.bigthing/.claude/worktrees/feat+landing-page-rework
+cd /Users/gabe/www/personal/nextbigidea/.claude/worktrees/feat+landing-page-rework
 grep -rn "theme-provider\|next-themes\|useTheme" apps/web --include=*.tsx --include=*.ts
 ```
 
@@ -114,7 +114,7 @@ const fontMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "NextBigThing",
+  title: "NextBigIdea",
   description:
     "SaaS ideas sourced from people who are already asking for them, scored and linked back to the posts that prove demand.",
 }
@@ -248,7 +248,7 @@ Create `apps/web/lib/content.ts`:
 //   - we scan weekly, we publish monthly — never "new ideas weekly"
 
 export const COMPANY = {
-  name: "NextBigThing",
+  name: "NextBigIdea",
   legalName: "GABRIEL CAMPOS DOS SANTOS P DE CARVALHO LTDA",
   cnpj: "58.378.419/0001-61",
   email: "gabrielccarvalhopro@gmail.com",
@@ -336,7 +336,7 @@ export const WHY_EVIDENCE = {
     { generated: "Unfalsifiable", ours: "Every claim links to the post behind it" },
   ],
   generatedLabel: "Generated idea lists",
-  oursLabel: "NextBigThing",
+  oursLabel: "NextBigIdea",
 } as const;
 
 export const PRICING_SECTION = {
@@ -1836,7 +1836,7 @@ Note the `AuthButtons` widget is no longer on the landing page — sign-in lives
 grep -rn "NEXT_PUBLIC_APP_URL\|BETTER_AUTH_URL\|VERCEL_URL" apps/web --include=*.ts --include=*.tsx .env.example 2>/dev/null | head
 ```
 
-Use the existing env var if one is present. If none exists, use `https://nextbigthing.com.br` as the `metadataBase` and **flag it in the commit message as needing confirmation** — an incorrect `metadataBase` produces broken OG image URLs.
+Use the existing env var if one is present. If none exists, use `https://nextbigidea.dev` as the `metadataBase` and **flag it in the commit message as needing confirmation** — an incorrect `metadataBase` produces broken OG image URLs.
 
 - [ ] **Step 3: Expand the layout metadata**
 
@@ -1844,16 +1844,16 @@ Replace the `metadata` export in `apps/web/app/layout.tsx` (added in Task 1):
 
 ```tsx
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://nextbigthing.com.br"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://nextbigidea.dev"),
   title: {
-    default: "NextBigThing — SaaS ideas people are already asking for",
-    template: "%s · NextBigThing",
+    default: "NextBigIdea — SaaS ideas people are already asking for",
+    template: "%s · NextBigIdea",
   },
   description:
     "Every week we read public posts across Reddit, Hacker News, and Product Hunt for people describing products that don't exist yet — then score them and link back to the posts that prove demand.",
   openGraph: {
     type: "website",
-    siteName: "NextBigThing",
+    siteName: "NextBigIdea",
     title: "SaaS ideas people are already asking for",
     description:
       "Scored, sourced demand signals from Reddit, Hacker News, and Product Hunt. Every idea links back to the posts behind it.",
@@ -1862,7 +1862,7 @@ export const metadata: Metadata = {
         url: "/og.png",
         width: 1200,
         height: 630,
-        alt: "NextBigThing — scored SaaS ideas with links to the posts that prove demand",
+        alt: "NextBigIdea — scored SaaS ideas with links to the posts that prove demand",
       },
     ],
   },
@@ -1885,7 +1885,7 @@ Create `apps/web/app/robots.ts`:
 ```ts
 import type { MetadataRoute } from "next";
 
-const BASE = process.env.NEXT_PUBLIC_APP_URL ?? "https://nextbigthing.com.br";
+const BASE = process.env.NEXT_PUBLIC_APP_URL ?? "https://nextbigidea.dev";
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -1900,7 +1900,7 @@ Create `apps/web/app/sitemap.ts`:
 ```ts
 import type { MetadataRoute } from "next";
 
-const BASE = process.env.NEXT_PUBLIC_APP_URL ?? "https://nextbigthing.com.br";
+const BASE = process.env.NEXT_PUBLIC_APP_URL ?? "https://nextbigidea.dev";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [

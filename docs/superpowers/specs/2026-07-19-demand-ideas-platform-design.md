@@ -1,4 +1,4 @@
-# NextBigThing — SaaS Demand Ideas Platform — Design
+# NextBigIdea — SaaS Demand Ideas Platform — Design
 
 **Date:** 2026-07-19
 **Status:** Approved by Gabriel (brainstorming session)

@@ -1,10 +1,9 @@
 import { cn } from "@workspace/ui/lib/utils";
 import { COMPANY } from "@/lib/content";
 
-// The brand wordmark: lowercase "next.bigthing" with the separating dot in the brand green
-// (--primary) and the "thing" suffix dropped back to muted. The accent is deliberately the
-// primary token, NOT --destructive (the coral error red), so the mark never collides with
-// error states. `COMPANY.name` is the accessible label; the styled letters are decorative.
+// The brand wordmark: lowercase "nextbigidea" with the "idea" suffix dropped back to muted,
+// which is the mark's only accent. `COMPANY.name` is the accessible label; the styled letters
+// are decorative.
 export function Logo({ className }: { className?: string }) {
   return (
     <span
@@ -12,7 +11,7 @@ export function Logo({ className }: { className?: string }) {
       aria-label={COMPANY.name}
     >
       <span aria-hidden="true">
-        next<span className="text-primary">.</span>big<span className="text-muted-foreground">thing</span>
+        nextbig<span className="text-muted-foreground">idea</span>
       </span>
     </span>
   );

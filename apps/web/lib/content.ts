@@ -7,7 +7,7 @@
 //   - we scan weekly, we publish monthly — never "new ideas weekly"
 
 export const COMPANY = {
-  name: "NextBigThing",
+  name: "NextBigIdea",
   legalName: "GABRIEL CAMPOS DOS SANTOS P DE CARVALHO LTDA",
   cnpj: "58.378.419/0001-61",
   email: "gabrielccarvalhopro@gmail.com",
@@ -125,7 +125,7 @@ export const WHY_EVIDENCE = {
     { generated: "Unfalsifiable", ours: "Every claim links to the post behind it" },
   ],
   generatedLabel: "Generated idea lists",
-  oursLabel: "NextBigThing",
+  oursLabel: "NextBigIdea",
 } as const;
 
 export const PAYWALL_CTA = {

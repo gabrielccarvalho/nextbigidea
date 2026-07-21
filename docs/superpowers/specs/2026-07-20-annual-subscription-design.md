@@ -58,7 +58,7 @@ with a `cycle`; one-off (`avulso`) products return an error. Create a new produc
 POST /products/create
 {
   "externalId": "nbt-annual",
-  "name": "Next Big Thing — Acesso Anual",
+  "name": "NextBigIdea — Acesso Anual",
   "price": 11000,
   "currency": "BRL",
   "cycle": "ANNUALLY"
