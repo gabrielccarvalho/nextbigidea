@@ -10,7 +10,10 @@ const BASE_URL = "https://api.abacatepay.com/v2";
 // wasn't corrupted in transit; it does NOT prove a given callback belongs to *this* account
 // (anyone who read the docs has this key too). Overridable via env in case AbacatePay rotates
 // it or issues per-account keys in the future.
-const ABACATEPAY_HMAC_PUBLIC_KEY =
+// Exported so the E2E suite signs webhook payloads with the exact key this module verifies
+// against — a test that hardcoded its own copy could drift from the app and pass while the
+// real webhook rejected every callback.
+export const ABACATEPAY_HMAC_PUBLIC_KEY =
   process.env.ABACATEPAY_HMAC_PUBLIC_KEY ??
   "t9dXRhHHo3yDEj5pVDYz0frf7q6bMKyMRmxxCPIPp3RCplBfXRxqlC6ZpiWmOqj4L63qEaeUOtrCI8P0VMUgo6iIga2ri9ogaHFs0WIIywSMg0q7RmBfybe1E5XJcfC4IW3alNqym0tXoAKkzvfEjZxV6bE0oG2zJrNNYmUCKZyV0KZ3JS8Votf9EAWWYdiDkMkpbMdPggfh1EqHlVkMiTady6jOR3hyzGEHrIz2Ret0xHKMbiqkr9HS1JhNHDX9";
 

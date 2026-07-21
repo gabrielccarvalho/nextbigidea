@@ -13,8 +13,16 @@ node_modules
 # testing
 coverage
 
+# playwright (e2e) — reports, traces, and the forged session state global-setup writes
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+apps/web/e2e/.auth/
+
 # next.js
 .next/
+.next-e2e/
 out/
 
 # production

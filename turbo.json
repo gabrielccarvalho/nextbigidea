@@ -7,7 +7,12 @@
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": [".next/**", "!.next/cache/**"],
       "env": [
+        "CI",
+        "NEXT_DIST_DIR",
         "DATABASE_URL",
+        "NEON_LOCAL_PROXY",
+        "NEON_LOCAL_HTTP_HOST",
+        "NEON_LOCAL_WS_HOST",
         "BETTER_AUTH_URL",
         "BETTER_AUTH_SECRET",
         "GOOGLE_CLIENT_ID",
@@ -29,6 +34,27 @@
     },
     "lint": {
       "dependsOn": ["^lint"]
+    },
+    "test:e2e": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "env": [
+        "CI",
+        "NEXT_DIST_DIR",
+        "DATABASE_URL",
+        "NEON_LOCAL_PROXY",
+        "NEON_LOCAL_HTTP_HOST",
+        "NEON_LOCAL_WS_HOST",
+        "BETTER_AUTH_URL",
+        "BETTER_AUTH_SECRET",
+        "NEXT_PUBLIC_APP_URL",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "ABACATEPAY_API_KEY",
+        "ABACATEPAY_PRODUCT_ID",
+        "ABACATEPAY_WEBHOOK_SECRET",
+        "ABACATEPAY_HMAC_PUBLIC_KEY"
+      ]
     },
     "format": {
       "dependsOn": ["^format"]
