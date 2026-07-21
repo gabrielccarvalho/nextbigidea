@@ -1,0 +1,30 @@
+# Vercel's CLI uploader does NOT reliably honour .gitignore, and this repo carries large
+# local build caches: .turbo/cache holds a ~364MB archive and .next/dev/cache/turbopack
+# holds several 100MB+ .sst files. Both blow the 100MB per-file limit and made the first
+# `vercel deploy --prod` fail after uploading 434MB. Everything here is either rebuilt on
+# the build machine or irrelevant to it.
+
+# Dependencies and build caches — reinstalled/regenerated during the build
+node_modules
+.turbo
+.next
+.next-e2e
+.next-build
+
+# Local-only tooling and VCS
+.git
+.vercel
+
+# Playwright output and the forged session state global-setup writes
+test-results
+playwright-report
+blob-report
+.playwright
+apps/web/e2e/.auth
+
+# Not needed to build the app
+docs
+.superpowers
+.agents
+.claude
+skills-lock.json
