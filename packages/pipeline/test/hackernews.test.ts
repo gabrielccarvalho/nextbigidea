@@ -19,8 +19,11 @@ describe("parseHnHits", () => {
     expect(first.content).toContain("pay for automation");
   });
 
-  it("tolerates null story_text", () => {
+  it("tolerates null story_text, keeping the post for its title", () => {
     const posts = parseHnHits(fixture);
+    // relevance.ts matches against `${title} ${content}`, so a story whose demand
+    // lives entirely in its title must survive parsing with empty content.
     expect(posts[1]!.content).toBe("");
+    expect(posts[1]!.title).toBeTruthy();
   });
 });

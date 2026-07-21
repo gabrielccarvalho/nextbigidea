@@ -82,3 +82,39 @@ describe("topByEngagement", () => {
     expect(posts).toEqual(original);
   });
 });
+
+describe("topByEngagement postedAt tiebreak", () => {
+  // HN comment hits carry no points and no comment count, so every one sums to 0 and
+  // the engagement sort cannot order them. Without a tiebreak, "top 150" was whatever
+  // order the fetch produced.
+  const zeroMetricPost = (id: string, iso: string): RawPost => ({
+    source: "hackernews",
+    sourcePostId: id,
+    url: `https://news.ycombinator.com/item?id=${id}`,
+    content: `comment ${id}`,
+    metrics: {},
+    postedAt: new Date(iso),
+  });
+
+  it("orders zero-metric posts newest first", () => {
+    const posts = [
+      zeroMetricPost("old", "2026-07-01T00:00:00Z"),
+      zeroMetricPost("new", "2026-07-20T00:00:00Z"),
+      zeroMetricPost("mid", "2026-07-10T00:00:00Z"),
+    ];
+    expect(topByEngagement(posts, 3).map((p) => p.sourcePostId)).toEqual(["new", "mid", "old"]);
+  });
+
+  it("never lets recency outrank real engagement", () => {
+    const engaged: RawPost = {
+      source: "hackernews",
+      sourcePostId: "engaged",
+      url: "u",
+      content: "story",
+      metrics: { points: 200, comments: 50 },
+      postedAt: new Date("2026-07-01T00:00:00Z"),
+    };
+    const recent = zeroMetricPost("recent", "2026-07-20T00:00:00Z");
+    expect(topByEngagement([recent, engaged], 2)[0]!.sourcePostId).toBe("engaged");
+  });
+});

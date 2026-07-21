@@ -10,11 +10,24 @@ function sumMetrics(metrics: Record<string, number>): number {
 }
 
 // Selects the highest-signal posts for clusterPosts to consider, bounding the
-// size of its single `enrich` call. Sorts a COPY — never mutates the input,
+// size of its single `complete` call. Sorts a COPY — never mutates the input,
 // since callers (and their own callers) may still hold a reference to the
 // original ordering.
+//
+// The postedAt tiebreak exists because HN comment hits carry no points and no
+// comment count — Algolia simply omits both — so every comment sums to 0 and the
+// engagement sort cannot order them at all. Without a tiebreak the "top 150" was
+// whatever arbitrary order the fetch happened to produce. Recency is the only real
+// signal available for comments, and it is applied as a tiebreak rather than folded
+// into the metrics so it can never outrank genuine engagement on posts that have it.
 export function topByEngagement(posts: RawPost[], limit: number): RawPost[] {
-  return [...posts].sort((a, b) => sumMetrics(b.metrics) - sumMetrics(a.metrics)).slice(0, limit);
+  return [...posts]
+    .sort((a, b) => {
+      const byMetrics = sumMetrics(b.metrics) - sumMetrics(a.metrics);
+      if (byMetrics !== 0) return byMetrics;
+      return (b.postedAt?.getTime() ?? 0) - (a.postedAt?.getTime() ?? 0);
+    })
+    .slice(0, limit);
 }
 
 export function slugify(title: string): string {

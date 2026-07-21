@@ -2,7 +2,7 @@
 //
 // Copy rules enforced by lib/content.test.ts:
 //   - no banned marketing adjectives or invented social proof
-//   - exactly three sources (Reddit, Hacker News, Product Hunt)
+//   - exactly three sources (Hacker News, GitHub, Stack Exchange)
 //   - price is stated in BRL; USD only ever as a parenthetical
 //   - we scan weekly, we publish monthly — never "new ideas weekly"
 
@@ -25,16 +25,16 @@ export const PRICING = {
 } as const;
 
 export const SOURCES = [
-  { name: "Reddit", color: "#ff4500" },
   { name: "Hacker News", color: "#ff6600" },
-  { name: "Product Hunt", color: "#da552f" },
+  { name: "GitHub", color: "#8957e5" },
+  { name: "Stack Exchange", color: "#0a95ff" },
 ] as const;
 
 export const HERO = {
   eyebrow: "Evidence, not brainstorms",
   headline: "Every idea here has someone asking for it.",
   subhead:
-    "Every week we read public posts across Reddit, Hacker News, and Product Hunt looking for people describing a product that doesn't exist yet — then score the strongest signals and link each one back to the posts that prove it. Nobody's built them yet.",
+    "Every week we read public posts across Hacker News, GitHub, and Stack Exchange looking for people describing a product that doesn't exist yet — then score the strongest signals and link each one back to the posts that prove it. Nobody's built them yet.",
   primaryCta: "Browse the ideas",
   primaryHref: "/ideas",
   secondaryCta: "See what you get",
@@ -75,9 +75,9 @@ export const SPECIMEN = {
     competition:
       "Three tools do this inside a larger billing suite. None of them do it on its own, and each one expects you to move your whole invoicing workflow across first.",
     evidence: [
-      { quote: "Six tools tried, none of them just send the invoice.", source: "Reddit" },
+      { quote: "Six tools tried, none of them just send the invoice.", source: "GitHub" },
       { quote: "I'd pay for something that does only this.", source: "Hacker News" },
-      { quote: "Every billing tool wants to be an ERP.", source: "Product Hunt" },
+      { quote: "Every billing tool wants to be an ERP.", source: "Stack Exchange" },
     ] as readonly SpecimenEvidence[],
   },
 } as const;
@@ -137,7 +137,7 @@ export const PAYWALL_CTA = {
 
 export const IDEAS_PAGE = {
   title: "SaaS demand ideas",
-  subhead: "Sourced from Reddit, Hacker News, and Product Hunt. New ideas every month.",
+  subhead: "Sourced from Hacker News, GitHub, and Stack Exchange. New ideas every month.",
 } as const;
 
 export const IDEA_DETAIL = {
@@ -250,7 +250,7 @@ export const FAQ = {
     },
     {
       q: "Where do the ideas come from?",
-      a: "Public posts on Reddit, Hacker News, and Product Hunt. Every idea links back to the posts it came from.",
+      a: "Public posts on Hacker News, GitHub, and Stack Exchange. Every idea links back to the posts it came from.",
     },
     {
       q: "Do you validate the ideas yourselves?",

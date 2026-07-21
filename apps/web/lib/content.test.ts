@@ -42,14 +42,18 @@ describe("copy rules", () => {
   });
 
   it("does not mention unverified sources", () => {
-    for (const forbidden of ["linkedin", "twitter"]) {
+    // reddit/product hunt are forbidden for a stronger reason than the others: their
+    // terms prohibit commercial use of the data without written approval, so naming
+    // them is a claim we are not licensed to fulfil. See the source audit in
+    // docs/ — do not re-add without a signed agreement.
+    for (const forbidden of ["linkedin", "twitter", "reddit", "product hunt"]) {
       expect(CORPUS).not.toContain(forbidden);
     }
     // "X" is too short to grep safely; assert the source list instead.
     expect(SOURCES.map((s) => s.name)).toEqual([
-      "Reddit",
       "Hacker News",
-      "Product Hunt",
+      "GitHub",
+      "Stack Exchange",
     ]);
   });
 });

@@ -3,11 +3,8 @@ import { eq, gte, sum } from "drizzle-orm";
 import { enabledAdapters, loadEnv } from "./config";
 import { isOverCap } from "./cap";
 import type { RawPost, SourceAdapter } from "./types";
-import { redditAdapter } from "./adapters/reddit";
 import { hackerNewsAdapter } from "./adapters/hackernews";
 import { productHuntAdapter } from "./adapters/producthunt";
-import { xAdapter } from "./adapters/x";
-import { linkedinAdapter } from "./adapters/linkedin";
 import { upsertRawPosts } from "./stages/normalize";
 import { dedupeInMemory } from "./stages/dedupe";
 import { OpenAiClient } from "./llm";
@@ -16,15 +13,17 @@ import { clusterPosts } from "./stages/cluster";
 import { enrichTheme, persistIdea } from "./stages/enrich";
 import { PipelineRunReport } from "./report";
 
-// The concrete adapter list. Swapping an unofficial adapter for an official one
-// = replacing an entry here. The `enabled()` gate + config flags decide what runs.
-const ADAPTERS: SourceAdapter[] = [
-  redditAdapter,
-  hackerNewsAdapter,
-  productHuntAdapter,
-  xAdapter,
-  linkedinAdapter,
-];
+// The concrete adapter list. The `enabled()` gate + config flags decide what runs.
+//
+// Reddit, X and LinkedIn are deliberately NOT registered here. Reddit's Responsible
+// Builder Policy prohibits commercialising their data without written approval, and
+// this product sells access to ideas derived from it — the 403s the unauthenticated
+// endpoints now return are that policy being enforced, not a technical obstacle to
+// route around. X and LinkedIn were only ever reachable by driving a headless browser
+// with a logged-in session cookie, which violates both platforms' terms and risks the
+// account whose cookie is used. The adapter files remain in-tree for reference; adding
+// any of them back to this array requires a signed agreement with that platform.
+const ADAPTERS: SourceAdapter[] = [hackerNewsAdapter, productHuntAdapter];
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
