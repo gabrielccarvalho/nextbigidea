@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { filterRelevant, keywordPrefilter } from "../src/stages/relevance";
 import type { RawPost } from "../src/types";
-// Type-only import — anthropic.ts pulls in the Anthropic SDK but not
+// Type-only import — llm.ts pulls in the OpenAI SDK but not
 // `@workspace/db`, so this stays safe to load without DATABASE_URL set.
-import type { HaikuClient } from "../src/anthropic";
+import type { LlmClient } from "../src/llm";
 
 function post(content: string, title = ""): RawPost {
   return { source: "reddit", sourcePostId: Math.random().toString(), url: "u", title, content, metrics: {} };
@@ -12,8 +12,8 @@ function post(content: string, title = ""): RawPost {
 // Minimal fake satisfying only the method filterRelevant actually calls.
 function fakeClient(
   classifyDemand: (posts: { id: string; text: string }[]) => Set<string> | Promise<Set<string>>,
-): HaikuClient {
-  return { classifyDemand } as unknown as HaikuClient;
+): LlmClient {
+  return { classifyDemand } as unknown as LlmClient;
 }
 
 function wishPost(i: number): RawPost {

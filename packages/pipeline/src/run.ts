@@ -10,7 +10,7 @@ import { xAdapter } from "./adapters/x";
 import { linkedinAdapter } from "./adapters/linkedin";
 import { upsertRawPosts } from "./stages/normalize";
 import { dedupeInMemory } from "./stages/dedupe";
-import { HaikuClient } from "./anthropic";
+import { OpenAiClient } from "./llm";
 import { filterRelevant } from "./stages/relevance";
 import { clusterPosts } from "./stages/cluster";
 import { enrichTheme, persistIdea } from "./stages/enrich";
@@ -54,7 +54,7 @@ export async function runPipeline(): Promise<PipelineRunReport> {
   const runId = run!.id;
 
   // Hoisted so the catch below can still record whatever was spent before a crash.
-  const client = new HaikuClient(env.anthropicApiKey);
+  const client = new OpenAiClient(env.openaiApiKey);
 
   try {
     // 1. Fetch — each adapter isolated. A failure is recorded and skipped.

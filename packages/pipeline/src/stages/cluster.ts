@@ -1,7 +1,7 @@
 import { db, ideas } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import type { RawPost } from "../types";
-import type { HaikuClient } from "../anthropic";
+import type { LlmClient } from "../llm";
 import { parseThemes, topByEngagement } from "./themes";
 
 export { slugify, parseThemes, topByEngagement } from "./themes";
@@ -12,6 +12,22 @@ export { slugify, parseThemes, topByEngagement } from "./themes";
 // create near-duplicate ideas. Instead we bound the INPUT to the highest-
 // engagement posts rather than batching the calls.
 const MAX_CLUSTER_POSTS = 150;
+
+// Enforced by Structured Outputs, which is why the prompt no longer has to beg for
+// "ONLY a JSON array". `strict` mode requires additionalProperties: false and every
+// property listed in `required`.
+const THEMES_SCHEMA = {
+  type: "array",
+  items: {
+    type: "object",
+    properties: {
+      title: { type: "string" },
+      postKeys: { type: "array", items: { type: "string" } },
+    },
+    required: ["title", "postKeys"],
+    additionalProperties: false,
+  },
+} as const satisfies Record<string, unknown>;
 
 async function findSimilarIdea(themeTitle: string): Promise<number | null> {
   // pg_trgm similarity on the keywords column; threshold 0.3.
@@ -26,7 +42,7 @@ async function findSimilarIdea(themeTitle: string): Promise<number | null> {
 
 export async function clusterPosts(
   posts: RawPost[],
-  client: HaikuClient,
+  client: LlmClient,
 ): Promise<{ themeTitle: string; posts: RawPost[]; matchedIdeaId: number | null }[]> {
   if (posts.length === 0) return [];
   const bounded = topByEngagement(posts, MAX_CLUSTER_POSTS);
@@ -36,13 +52,17 @@ export async function clusterPosts(
     .join("\n");
   const prompt =
     `Group these posts into distinct product-demand themes. Each theme is one buildable SaaS idea.\n` +
-    `Return ONLY a JSON array: [{"title": "<short theme title>", "postKeys": ["source:id", ...]}].\n\n` +
+    `Each theme has a short title and the keys of the posts belonging to it.\n\n` +
     listing;
-  // max_tokens raised to 4096 (from the enrich() default of 2048): a large
-  // theme listing can otherwise get cut off mid-JSON. A truncated response
-  // fails JSON.parse inside parseThemes and is safely dropped to `[]` by its
-  // existing guard — themes are lost, but nothing is ever corrupted.
-  const themes = parseThemes(await client.enrich(prompt, 4096));
+  // Grouping is mechanical comparison, not authored prose, so it runs on the bulk tier.
+  //
+  // maxTokens raised to 4096 (from the complete() default of 2048): a large theme listing
+  // can otherwise get cut off mid-JSON. A truncated response still fails to parse and is
+  // safely dropped to `[]` by parseThemes' existing guard — themes are lost, but nothing
+  // is ever corrupted.
+  const themes = parseThemes(
+    await client.complete(prompt, { maxTokens: 4096, tier: "bulk", schema: THEMES_SCHEMA }),
+  );
   const result: { themeTitle: string; posts: RawPost[]; matchedIdeaId: number | null }[] = [];
   for (const t of themes) {
     const themePosts = t.postKeys.map((k) => byKey.get(k)).filter((p): p is RawPost => !!p);

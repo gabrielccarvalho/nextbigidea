@@ -1,10 +1,10 @@
 import type { RawPost } from "../types";
-import type { HaikuClient } from "../anthropic";
+import type { LlmClient } from "../llm";
 
 // This prefilter is the ONLY gate before the paid classifier. A phrasing that
 // matches nothing here is never evaluated at all, so gaps here are permanent
 // blind spots in the product's demand detection — worse than a few extra
-// Haiku calls, which the spend cap already bounds.
+// classifier calls, which the spend cap already bounds.
 const SIGNAL_PATTERNS: RegExp[] = [
   // Explicit wishes
   /\bi wish (there was|there were|i had|someone would|somebody would)\b/i,
@@ -41,7 +41,7 @@ const CLASSIFY_BATCH_SIZE = 100;
 
 export async function filterRelevant(
   posts: RawPost[],
-  client: HaikuClient,
+  client: LlmClient,
   shouldContinue: () => boolean = () => true,
 ): Promise<RawPost[]> {
   const pre = keywordPrefilter(posts);

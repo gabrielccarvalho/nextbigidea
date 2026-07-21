@@ -31,7 +31,7 @@ export function loadEnv(): PipelineEnv {
   const flag = (k: string): boolean => process.env[k] === "true";
   return {
     databaseUrl: req("DATABASE_URL"),
-    anthropicApiKey: req("ANTHROPIC_API_KEY"),
+    openaiApiKey: req("OPENAI_API_KEY"),
     monthlyUsdCap: parseUsdCap(process.env.PIPELINE_MONTHLY_USD_CAP),
     sources: {
       reddit: flag("SOURCE_REDDIT"),

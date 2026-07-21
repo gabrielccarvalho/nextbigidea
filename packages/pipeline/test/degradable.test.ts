@@ -6,7 +6,7 @@ import type { PipelineEnv } from "../src/types";
 function env(overrides: Partial<PipelineEnv> = {}): PipelineEnv {
   return {
     databaseUrl: "x",
-    anthropicApiKey: "x",
+    openaiApiKey: "x",
     monthlyUsdCap: 5,
     sources: { reddit: false, hackernews: false, producthunt: false, x: false, linkedin: false },
     redditUserAgent: "t",

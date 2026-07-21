@@ -5,7 +5,7 @@ import type { PipelineEnv, SourceAdapter } from "../src/types";
 function baseEnv(overrides: Partial<PipelineEnv> = {}): PipelineEnv {
   return {
     databaseUrl: "postgres://x",
-    anthropicApiKey: "sk-x",
+    openaiApiKey: "sk-x",
     monthlyUsdCap: 5,
     sources: { reddit: true, hackernews: true, producthunt: false, x: false, linkedin: false },
     redditUserAgent: "test",

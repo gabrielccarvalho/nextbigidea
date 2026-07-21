@@ -24,7 +24,7 @@ export interface EnrichedIdea {
 
 export interface PipelineEnv {
   databaseUrl: string;
-  anthropicApiKey: string;
+  openaiApiKey: string;
   monthlyUsdCap: number;
   sources: {
     reddit: boolean;

@@ -9,7 +9,7 @@ import { runPipeline } from "./run";
  * Two things are intercepted at `globalThis.fetch`, and nothing else:
  *   1. Reddit / HN source APIs  -> deterministic fixtures in the providers' real response shapes,
  *      so the adapters' genuine parsers (parseRedditListing / parseHnHits) do the work.
- *   2. api.anthropic.com        -> a deterministic stand-in for Haiku, so a full run costs $0.
+ *   2. api.openai.com           -> a deterministic stand-in for the model, so a run costs $0.
  *
  * Everything downstream of those two boundaries is production code. Run with:
  *   pnpm --filter @workspace/pipeline seed:local
@@ -269,19 +269,36 @@ function hnSearch() {
 const ALL_POSTS: SeedPost[] = [...Object.values(REDDIT_POSTS).flat(), ...HN_POSTS];
 const topicById = new Map(ALL_POSTS.map((p) => [p.id, p.topic]));
 
-/** A valid Anthropic Messages response envelope wrapping `text`. */
-function anthropicMessage(text: string) {
+/**
+ * A valid OpenAI Responses envelope wrapping `value`.
+ *
+ * Two details the SDK actually depends on:
+ *   - `output_text` is NOT read from the payload. The SDK derives it by walking `output[]`
+ *     for a `message` whose `content[]` holds an `output_text` block (see
+ *     openai/lib/ResponsesParser.js `addOutputText`). Flattening this envelope would yield
+ *     an empty string from every stage rather than an error.
+ *   - Every call goes through Structured Outputs, and OpenAiClient.complete() unwraps the
+ *     `{ result: ... }` envelope it wraps schemas in — so the fixture body must be wrapped
+ *     the same way or the unwrap yields undefined.
+ */
+function openAiResponse(value: unknown) {
   return {
-    id: "msg_seed",
-    type: "message",
-    role: "assistant",
-    model: "claude-haiku-4-5",
-    content: [{ type: "text", text }],
-    stop_reason: "end_turn",
-    stop_sequence: null,
+    id: "resp_seed",
+    object: "response",
+    model: "seed-local",
+    status: "completed",
+    output: [
+      {
+        id: "msg_seed",
+        type: "message",
+        role: "assistant",
+        status: "completed",
+        content: [{ type: "output_text", text: JSON.stringify({ result: value }), annotations: [] }],
+      },
+    ],
     // Reported as zero so the run records $0 spend against the monthly cap — the fixture run
     // must not consume budget that a later real run is entitled to.
-    usage: { input_tokens: 0, output_tokens: 0 },
+    usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
   };
 }
 
@@ -289,17 +306,18 @@ function anthropicMessage(text: string) {
  * Stands in for Haiku. Dispatches on the prompt each stage sends, and answers from the fixture
  * corpus so the run is fully deterministic.
  */
-function mockAnthropic(init?: RequestInit) {
-  const body = JSON.parse(String(init?.body ?? "{}")) as {
-    system?: string;
-    messages?: { content?: string }[];
-  };
-  const content = body.messages?.[0]?.content ?? "";
+function mockOpenAi(init?: RequestInit) {
+  // The Responses API takes one `input` string. Under the old Anthropic client the
+  // classifier's instruction arrived in a separate top-level `system` field, so dispatching
+  // on `system` used to work; it no longer exists, and matching on `input` is what keeps the
+  // classify branch reachable.
+  const body = JSON.parse(String(init?.body ?? "{}")) as { input?: string };
+  const content = body.input ?? "";
 
   // relevance.ts -> classifyDemand: every fixture post is genuine demand, so all indices match.
-  if (body.system?.includes("You classify social posts")) {
+  if (content.includes("You classify social posts")) {
     const count = content.split(/\n\n/).filter((s) => /^\[\d+\]/.test(s)).length;
-    return anthropicMessage(JSON.stringify(Array.from({ length: count }, (_, i) => i)));
+    return openAiResponse(Array.from({ length: count }, (_, i) => i));
   }
 
   // cluster.ts -> group the listing into one theme per topic.
@@ -316,15 +334,15 @@ function mockAnthropic(init?: RequestInit) {
       title: THEME_TITLES[topic],
       postKeys,
     }));
-    return anthropicMessage(JSON.stringify(themes));
+    return openAiResponse(themes);
   }
 
   // enrich.ts -> return the authored idea for the theme named in the prompt.
   const themeTitle = content.match(/demand posts about "([^"]+)"/)?.[1];
   const topic = (Object.keys(THEME_TITLES) as Topic[]).find((t) => THEME_TITLES[t] === themeTitle);
-  if (topic) return anthropicMessage(JSON.stringify(IDEAS[topic]));
+  if (topic) return openAiResponse(IDEAS[topic]);
 
-  throw new Error(`seed-local: unhandled Anthropic prompt: ${content.slice(0, 120)}`);
+  throw new Error(`seed-local: unhandled OpenAI prompt: ${content.slice(0, 120)}`);
 }
 
 // --- Network interception -------------------------------------------------------------------
@@ -338,7 +356,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const sub = url.match(/\/r\/([^/]+)\//)?.[1] ?? "";
     return jsonResponse(redditListing(sub));
   }
-  if (url.includes("api.anthropic.com")) return jsonResponse(mockAnthropic(init));
+  if (url.includes("api.openai.com")) return jsonResponse(mockOpenAi(init));
 
   // Anything else (including the Neon proxies, which use their own transport) passes through.
   return realFetch(input as RequestInfo, init);
@@ -351,7 +369,7 @@ process.env.SOURCE_HACKERNEWS = "true";
 process.env.SOURCE_PRODUCTHUNT = "false";
 process.env.SOURCE_X = "false";
 process.env.SOURCE_LINKEDIN = "false";
-process.env.ANTHROPIC_API_KEY ??= "sk-ant-seed-local-not-a-real-key";
+process.env.OPENAI_API_KEY ??= "sk-seed-local-not-a-real-key";
 
 const report = await runPipeline();
 console.log(JSON.stringify(report.toStats(), null, 2));
