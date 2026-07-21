@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { SAMPLE_IDEAS, SAMPLE_POSTS, SOURCES, type SampleIdea } from "@/lib/content";
 
 const GATHER_MS = 3400;
@@ -11,6 +11,26 @@ const CYCLE_MS = 9100;
 
 type Phase = "gathering signals" | "condensing" | "scored idea";
 
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+const subscribeToReducedMotion = (onChange: () => void) => {
+  const mq = window.matchMedia(REDUCED_MOTION_QUERY);
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+};
+
+// Subscribed rather than read into state from an effect: matchMedia is an
+// external store, and useSyncExternalStore keeps the read out of the render
+// body (which would desync SSR markup) without the extra render pass a
+// setState-in-effect costs. The server snapshot is `false` — motion is
+// assumed until the client can actually ask.
+const useReducedMotion = () =>
+  useSyncExternalStore(
+    subscribeToReducedMotion,
+    () => window.matchMedia(REDUCED_MOTION_QUERY).matches,
+    () => false,
+  );
+
 export function HeroAnimation() {
   const stageRef = useRef<HTMLDivElement>(null);
   const coreRef = useRef<HTMLDivElement>(null);
@@ -18,30 +38,28 @@ export function HeroAnimation() {
   const cardRef = useRef<HTMLDivElement>(null);
   const scoreRef = useRef<HTMLSpanElement>(null);
 
-  const [idea, setIdea] = useState<SampleIdea>(SAMPLE_IDEAS[0]!);
-  const [phase, setPhase] = useState<Phase>("gathering signals");
-  const [reduced, setReduced] = useState(false);
+  const [cycleIdea, setCycleIdea] = useState<SampleIdea>(SAMPLE_IDEAS[0]!);
+  const [cyclePhase, setCyclePhase] = useState<Phase>("gathering signals");
+  const reduced = useReducedMotion();
+
+  // Reduced motion shows the composed end state, so it is derived at render
+  // rather than pushed into state from the effect below. Whatever cycle the
+  // animation was mid-way through when the preference flipped is simply not
+  // displayed.
+  const idea = reduced ? SAMPLE_IDEAS[0]! : cycleIdea;
+  const phase: Phase = reduced ? "scored idea" : cyclePhase;
 
   useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReduced(mq.matches);
-    const onChange = () => setReduced(mq.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-
-  useEffect(() => {
-    // NOTE: this effect must depend on [reduced] ONLY. It calls setIdea() on
-    // every cycle; if `idea` were a dependency the effect would tear itself
-    // down and restart on each cycle, producing an infinite restart loop.
-    // Read the current idea from SAMPLE_IDEAS inside the closure instead.
+    // NOTE: this effect must depend on [reduced] ONLY. It calls setCycleIdea()
+    // on every cycle; if `cycleIdea` were a dependency the effect would tear
+    // itself down and restart on each cycle, producing an infinite restart
+    // loop. Read the current idea from SAMPLE_IDEAS inside the closure instead.
 
     // Reduced motion renders the composed final state: a finished card with a
-    // real score. Never an empty stage.
+    // real score. Never an empty stage. The card copy and the phase label are
+    // derived during render; only the imperative DOM work happens here.
     if (reduced) {
       const first = SAMPLE_IDEAS[0]!;
-      setIdea(first);
-      setPhase("scored idea");
       if (scoreRef.current) scoreRef.current.textContent = String(first.score);
       // A forwards-filling WAAPI animation keeps controlling computed opacity
       // even after it finishes, and it wins over inline style. If reduced
@@ -60,7 +78,7 @@ export function HeroAnimation() {
       // core and ring had opacity set to "1" during condensing and form phases
       // (~t=3400ms and t=4400ms), and without explicitly resetting them here,
       // cancel() would reveal those hidden elements instead of keeping them hidden.
-      // This reset mirrors what cycle() does at line 156–157.
+      // This reset mirrors what cycle() does when it starts a fresh cycle.
       if (coreRef.current) coreRef.current.style.opacity = "0";
       if (ringRef.current) ringRef.current.style.opacity = "0";
       return;
@@ -174,8 +192,8 @@ export function HeroAnimation() {
 
       const current = SAMPLE_IDEAS[cycleIndex % SAMPLE_IDEAS.length]!;
       cycleIndex += 1;
-      setIdea(current);
-      setPhase("gathering signals");
+      setCycleIdea(current);
+      setCyclePhase("gathering signals");
       card.style.opacity = "0";
       core.style.opacity = "0";
       ring.style.opacity = "0";
@@ -183,7 +201,7 @@ export function HeroAnimation() {
       posts.forEach((text, i) => spawnPost(text, i, posts.length));
 
       after(() => {
-        setPhase("condensing");
+        setCyclePhase("condensing");
         core.style.opacity = "1";
         core.animate(
           [{ transform: "scale(.2)", opacity: 0.2 }, { transform: "scale(1.5)", opacity: 1 }],
@@ -212,7 +230,7 @@ export function HeroAnimation() {
           { duration: 820, easing: "cubic-bezier(.2,.8,.25,1)", fill: "forwards" },
         );
 
-        setPhase("scored idea");
+        setCyclePhase("scored idea");
         countUp(current.score);
       }, FORM_AT);
 
@@ -234,7 +252,6 @@ export function HeroAnimation() {
       spawned.forEach((el) => el.remove());
     };
     // Intentionally [reduced] only — see the note at the top of this effect.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reduced]);
 
   return (

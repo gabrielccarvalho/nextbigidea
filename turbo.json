@@ -5,7 +5,27 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**"]
+      "outputs": [".next/**", "!.next/cache/**"],
+      "env": [
+        "DATABASE_URL",
+        "BETTER_AUTH_URL",
+        "BETTER_AUTH_SECRET",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "RESEND_API_KEY",
+        "EMAIL_FROM",
+        "PAYMENT_ALERT_EMAIL",
+        "ADMIN_USER_IDS",
+        "ABACATEPAY_API_KEY",
+        "ABACATEPAY_PRODUCT_ID",
+        "ABACATEPAY_WEBHOOK_SECRET",
+        "ABACATEPAY_HMAC_PUBLIC_KEY",
+        "PIPELINE_MONTHLY_USD_CAP",
+        "PRODUCTHUNT_TOKEN",
+        "REDDIT_USER_AGENT",
+        "X_SESSION_COOKIE",
+        "LINKEDIN_SESSION_COOKIE"
+      ]
     },
     "lint": {
       "dependsOn": ["^lint"]
