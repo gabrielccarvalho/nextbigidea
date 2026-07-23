@@ -8,6 +8,10 @@ on:
         description: "Days of history to fetch — raise for a one-off backfill run"
         required: false
         default: "7"
+      usd_cap:
+        description: "Monthly USD spend cap — a 365-day backfill needs ~$4 headroom"
+        required: false
+        default: "5"
 
 jobs:
   run:
@@ -31,7 +35,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          PIPELINE_MONTHLY_USD_CAP: "5"
+          PIPELINE_MONTHLY_USD_CAP: ${{ inputs.usd_cap || '5' }}
           PIPELINE_SINCE_DAYS: ${{ inputs.since_days || '7' }}
           SOURCE_HACKERNEWS: "true"
           SOURCE_STACKEXCHANGE: "true"
