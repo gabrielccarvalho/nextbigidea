@@ -8,7 +8,16 @@ function env(overrides: Partial<PipelineEnv> = {}): PipelineEnv {
     databaseUrl: "x",
     openaiApiKey: "x",
     monthlyUsdCap: 5,
-    sources: { reddit: false, hackernews: false, producthunt: false, x: false, linkedin: false },
+    sinceDays: 7,
+    sources: {
+      reddit: false,
+      hackernews: false,
+      producthunt: false,
+      x: false,
+      linkedin: false,
+      stackexchange: false,
+      github: false,
+    },
     redditUserAgent: "t",
     ...overrides,
   };

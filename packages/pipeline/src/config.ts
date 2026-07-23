@@ -22,6 +22,17 @@ export function parseUsdCap(raw: string | undefined): number {
   return n;
 }
 
+// Same failure shape as parseUsdCap: a NaN or non-positive window would compute
+// an Invalid Date `since` and every adapter would quietly fetch nothing.
+export function parseSinceDays(raw: string | undefined): number {
+  if (raw === undefined || raw === "") return 7;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new Error(`PIPELINE_SINCE_DAYS must be a positive number of days, got ${JSON.stringify(raw)}`);
+  }
+  return n;
+}
+
 export function loadEnv(): PipelineEnv {
   const req = (k: string): string => {
     const v = process.env[k];
@@ -33,16 +44,21 @@ export function loadEnv(): PipelineEnv {
     databaseUrl: req("DATABASE_URL"),
     openaiApiKey: req("OPENAI_API_KEY"),
     monthlyUsdCap: parseUsdCap(process.env.PIPELINE_MONTHLY_USD_CAP),
+    sinceDays: parseSinceDays(process.env.PIPELINE_SINCE_DAYS),
     sources: {
       reddit: flag("SOURCE_REDDIT"),
       hackernews: flag("SOURCE_HACKERNEWS"),
       producthunt: flag("SOURCE_PRODUCTHUNT"),
       x: flag("SOURCE_X"),
       linkedin: flag("SOURCE_LINKEDIN"),
+      stackexchange: flag("SOURCE_STACKEXCHANGE"),
+      github: flag("SOURCE_GITHUB"),
     },
     redditUserAgent: process.env.REDDIT_USER_AGENT ?? "demand-ideas-bot/0.1",
     productHuntToken: process.env.PRODUCTHUNT_TOKEN,
     xSessionCookie: process.env.X_SESSION_COOKIE,
     linkedinSessionCookie: process.env.LINKEDIN_SESSION_COOKIE,
+    stackexchangeKey: process.env.STACKEXCHANGE_KEY,
+    githubToken: process.env.GITHUB_TOKEN,
   };
 }

@@ -1,4 +1,4 @@
-import type { PipelineEnv, RawPost, SourceAdapter } from "../types";
+import type { AdapterDeps, PipelineEnv, RawPost, SourceAdapter } from "../types";
 
 // Demand phrasing lives in COMMENTS, not stories. Measured against Algolia over a
 // 7-day window: `tags=ask_hn` returned 0 hits for every one of these phrases, while
@@ -9,7 +9,9 @@ import type { PipelineEnv, RawPost, SourceAdapter } from "../types";
 // One query per phrase rather than one broad query: Algolia's relevance search over a
 // vague term ("ask HN tool") returns topically-adjacent posts, whereas a quoted phrase
 // matches the literal demand expression the prefilter is also looking for.
-const DEMAND_PHRASES = [
+// Exported: the Stack Exchange and GitHub adapters search the same quoted
+// phrases, so all sources mine one shared definition of "demand phrasing".
+export const DEMAND_PHRASES = [
   '"i wish there was"',
   '"i wish someone would"',
   '"is there a tool"',
@@ -95,22 +97,64 @@ export function parseHnHits(json: unknown): RawPost[] {
   return out;
 }
 
+// Algolia caps any single query at 1,000 retrievable hits no matter how it is
+// paged (verified live: offset 1,000+ returns "you can only fetch the 1000 hits
+// for this query"). The way past the cap is to slice TIME, not pages: fetch the
+// newest window, then re-issue the query bounded below the oldest hit seen, and
+// repeat. Each window yields up to hitsPerPage hits; chaining windows walks
+// arbitrarily far back. maxPages bounds the walk so one fat phrase over a long
+// backfill window cannot fetch unbounded input for the paid classifier.
+//
+// Boundary note: `created_at_i<oldest` excludes other comments posted in that
+// same second — an acceptable loss versus re-fetching the whole page to dedupe.
+export async function walkPhrase(
+  phrase: string,
+  sinceTs: number,
+  fetchImpl: typeof fetch,
+  opts: { hitsPerPage: number; maxPages: number },
+): Promise<RawPost[]> {
+  const all: RawPost[] = [];
+  let upperTs: number | undefined;
+  for (let pageNo = 0; pageNo < opts.maxPages; pageNo++) {
+    const window = `created_at_i>${sinceTs}` + (upperTs !== undefined ? `,created_at_i<${upperTs}` : "");
+    const url =
+      `https://hn.algolia.com/api/v1/search_by_date` +
+      `?query=${encodeURIComponent(phrase)}&tags=comment` +
+      `&numericFilters=${encodeURIComponent(window)}&hitsPerPage=${opts.hitsPerPage}`;
+    const res = await fetchImpl(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = (await res.json()) as { hits?: { created_at_i?: number }[] };
+    all.push(...parseHnHits(json));
+    const hits = Array.isArray(json?.hits) ? json.hits : [];
+    if (hits.length < opts.hitsPerPage) break;
+    const stamps = hits.map((h) => h.created_at_i).filter((t): t is number => typeof t === "number");
+    if (stamps.length === 0) break;
+    upperTs = Math.min(...stamps);
+  }
+  return all;
+}
+
+// 10,000 requests/hour per IP (Algolia's published limit); even a full backfill
+// walk is 10 phrases × MAX_PAGES_PER_PHRASE requests — nowhere near it.
+const HITS_PER_PAGE = 1000;
+const MAX_PAGES_PER_PHRASE = 2;
+
 export const hackerNewsAdapter: SourceAdapter = {
   name: "hackernews",
   enabled: (env) => env.sources.hackernews,
-  async fetchPosts(since: Date, _env: PipelineEnv): Promise<RawPost[]> {
+  async fetchPosts(since: Date, _env: PipelineEnv, deps: AdapterDeps = {}): Promise<RawPost[]> {
+    const fetchImpl = deps.fetchImpl ?? fetch;
     const sinceTs = Math.floor(since.getTime() / 1000);
     const all: RawPost[] = [];
     const errors: string[] = [];
     for (const phrase of DEMAND_PHRASES) {
-      const url =
-        `https://hn.algolia.com/api/v1/search_by_date` +
-        `?query=${encodeURIComponent(phrase)}&tags=comment` +
-        `&numericFilters=created_at_i>${sinceTs}&hitsPerPage=100`;
       try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        all.push(...parseHnHits(await res.json()));
+        all.push(
+          ...(await walkPhrase(phrase, sinceTs, fetchImpl, {
+            hitsPerPage: HITS_PER_PAGE,
+            maxPages: MAX_PAGES_PER_PHRASE,
+          })),
+        );
       } catch (err) {
         // One phrase failing must not lose the other nine. Only a total wipeout is
         // reported as an adapter failure.

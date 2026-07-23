@@ -4,34 +4,45 @@ import { enabledAdapters, loadEnv } from "./config";
 import { isOverCap } from "./cap";
 import type { RawPost, SourceAdapter } from "./types";
 import { hackerNewsAdapter } from "./adapters/hackernews";
-import { productHuntAdapter } from "./adapters/producthunt";
+import { stackExchangeAdapter } from "./adapters/stackexchange";
+import { githubAdapter } from "./adapters/github";
 import { upsertRawPosts } from "./stages/normalize";
 import { dedupeInMemory } from "./stages/dedupe";
 import { OpenAiClient } from "./llm";
 import { filterRelevant } from "./stages/relevance";
-import { clusterPosts } from "./stages/cluster";
+import { clusterPosts, MAX_CLUSTER_POSTS } from "./stages/cluster";
+import { chunkByEngagement } from "./stages/themes";
 import { enrichTheme, persistIdea } from "./stages/enrich";
 import { PipelineRunReport } from "./report";
 
 // The concrete adapter list. The `enabled()` gate + config flags decide what runs.
 //
-// Reddit, X and LinkedIn are deliberately NOT registered here. Reddit's Responsible
-// Builder Policy prohibits commercialising their data without written approval, and
-// this product sells access to ideas derived from it — the 403s the unauthenticated
-// endpoints now return are that policy being enforced, not a technical obstacle to
-// route around. X and LinkedIn were only ever reachable by driving a headless browser
-// with a logged-in session cookie, which violates both platforms' terms and risks the
-// account whose cookie is used. The adapter files remain in-tree for reference; adding
-// any of them back to this array requires a signed agreement with that platform.
-const ADAPTERS: SourceAdapter[] = [hackerNewsAdapter, productHuntAdapter];
+// Every source here permits commercial third-party use of its public content:
+// Hacker News via the open Algolia API, Stack Exchange under CC BY-SA (attribution
+// required wherever an excerpt is displayed — author + link are captured per post),
+// and GitHub under ToS §D.5/D.8.
+//
+// Reddit, X, LinkedIn and Product Hunt are deliberately NOT registered. Reddit's
+// Responsible Builder Policy and Product Hunt's terms both prohibit commercialising
+// their data without written approval, and this product sells access to ideas
+// derived from it — the 403s Reddit's unauthenticated endpoints return are that
+// policy being enforced, not a technical obstacle to route around. X and LinkedIn
+// were only ever reachable by driving a headless browser with a logged-in session
+// cookie, which violates both platforms' terms and risks the account whose cookie
+// is used. The adapter files remain in-tree for reference; adding any of them back
+// to this array requires a signed agreement with that platform. Bluesky is also
+// out for now: its post-search endpoint stopped being publicly accessible in 2025
+// and now requires an authenticated session.
+const ADAPTERS: SourceAdapter[] = [hackerNewsAdapter, stackExchangeAdapter, githubAdapter];
 
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const THIRTY_DAYS_MS = 30 * DAY_MS;
 
 export async function runPipeline(): Promise<PipelineRunReport> {
   const env = loadEnv();
   const report = new PipelineRunReport();
-  const since = new Date(Date.now() - WEEK_MS);
+  // 7 days for the weekly cron; PIPELINE_SINCE_DAYS raises it for backfill runs.
+  const since = new Date(Date.now() - env.sinceDays * DAY_MS);
   const capMillicents = env.monthlyUsdCap * 100_000;
 
   // The cap is MONTHLY (trailing 30 days), not per-run. Sum spend already
@@ -93,20 +104,27 @@ export async function runPipeline(): Promise<PipelineRunReport> {
       relevant = await filterRelevant(deduped, client, shouldContinue);
     }
 
-    // 4. Cluster into themes.
-    const themes = shouldContinue() ? await clusterPosts(relevant, client) : [];
-
-    // 5. Enrich + persist, aborting before the cap is exceeded.
-    for (const theme of themes) {
+    // 4+5. Cluster into themes, then enrich + persist — chunk by chunk, aborting
+    // before the cap is exceeded. A weekly run rarely exceeds one chunk, so this
+    // is the old single-call behaviour; a backfill run walks every chunk instead
+    // of silently dropping everything beyond the first MAX_CLUSTER_POSTS posts.
+    // Ordering matters: each chunk is persisted before the next one clusters, so
+    // findSimilarIdea folds a later chunk's near-duplicate themes into the ideas
+    // an earlier chunk just created rather than minting parallel copies.
+    for (const chunk of chunkByEngagement(relevant, MAX_CLUSTER_POSTS)) {
       if (!shouldContinue()) break;
-      const idea = await enrichTheme(theme.themeTitle, theme.posts, client);
-      if (!idea) continue;
-      const ids = theme.posts
-        .map((p) => idByKey.get(`${p.source}:${p.sourcePostId}`))
-        .filter((x): x is number => typeof x === "number");
-      const outcome = await persistIdea(idea, theme.posts, ids, theme.matchedIdeaId);
-      if (outcome === "created") report.ideasCreated++;
-      else report.ideasUpdated++;
+      const themes = await clusterPosts(chunk, client);
+      for (const theme of themes) {
+        if (!shouldContinue()) break;
+        const idea = await enrichTheme(theme.themeTitle, theme.posts, client);
+        if (!idea) continue;
+        const ids = theme.posts
+          .map((p) => idByKey.get(`${p.source}:${p.sourcePostId}`))
+          .filter((x): x is number => typeof x === "number");
+        const outcome = await persistIdea(idea, theme.posts, ids, theme.matchedIdeaId);
+        if (outcome === "created") report.ideasCreated++;
+        else report.ideasUpdated++;
+      }
     }
 
     report.spentMillicents = client.spentMillicents;

@@ -1,0 +1,36 @@
+{
+  "items": [
+    {
+      "question_id": 123456,
+      "title": "Is there a tool to sync &quot;smart&quot; playlists across devices?",
+      "body": "<p>I&#39;m looking for a tool that can sync smart playlists between my phone and desktop. I&#x27;d pay for something reliable.</p>",
+      "link": "https://softwarerecs.stackexchange.com/questions/123456/is-there-a-tool-to-sync-smart-playlists",
+      "owner": { "display_name": "jane_doe", "link": "https://softwarerecs.stackexchange.com/users/999/jane-doe" },
+      "score": 12,
+      "answer_count": 3,
+      "view_count": 480,
+      "creation_date": 1750000000,
+      "tags": ["music", "synchronization"]
+    },
+    {
+      "question_id": 654321,
+      "title": "Software to batch-rename photos by EXIF date?",
+      "link": "https://superuser.com/questions/654321/software-to-batch-rename-photos",
+      "owner": { "display_name": "bob" },
+      "score": 5,
+      "answer_count": 1,
+      "view_count": 120,
+      "creation_date": 1751000000,
+      "tags": ["photos"]
+    },
+    {
+      "title": "An item with no question_id must be skipped",
+      "score": 1,
+      "answer_count": 0,
+      "creation_date": 1751000001
+    }
+  ],
+  "has_more": false,
+  "quota_max": 300,
+  "quota_remaining": 297
+}

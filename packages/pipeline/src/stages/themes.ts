@@ -30,6 +30,23 @@ export function topByEngagement(posts: RawPost[], limit: number): RawPost[] {
     .slice(0, limit);
 }
 
+// Splits the full relevant set into engagement-ordered chunks for clustering.
+// One clusterPosts call is bounded (fragmenting a single call would split
+// themes), but a backfill run can carry far more than one call's worth of
+// posts — so the orchestrator clusters chunk by chunk instead of silently
+// dropping everything beyond the first MAX_CLUSTER_POSTS. Cross-chunk theme
+// duplication is handled by findSimilarIdea: each chunk's themes are matched
+// against ideas already persisted, including ones created by earlier chunks
+// in the same run.
+export function chunkByEngagement(posts: RawPost[], size: number): RawPost[][] {
+  const ordered = topByEngagement(posts, posts.length);
+  const chunks: RawPost[][] = [];
+  for (let i = 0; i < ordered.length; i += size) {
+    chunks.push(ordered.slice(i, i + size));
+  }
+  return chunks;
+}
+
 export function slugify(title: string): string {
   const slug = title
     .toLowerCase()

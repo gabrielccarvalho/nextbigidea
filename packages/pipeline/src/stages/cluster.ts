@@ -11,7 +11,9 @@ export { slugify, parseThemes, topByEngagement } from "./themes";
 // splitting the input into batches would fragment themes across calls and
 // create near-duplicate ideas. Instead we bound the INPUT to the highest-
 // engagement posts rather than batching the calls.
-const MAX_CLUSTER_POSTS = 150;
+// Exported so run.ts chunks the relevant set at exactly this boundary — every
+// chunk it passes fits one clusterPosts call with nothing silently dropped.
+export const MAX_CLUSTER_POSTS = 150;
 
 // Enforced by Structured Outputs, which is why the prompt no longer has to beg for
 // "ONLY a JSON array". `strict` mode requires additionalProperties: false and every

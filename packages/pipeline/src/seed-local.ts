@@ -369,6 +369,10 @@ process.env.SOURCE_HACKERNEWS = "true";
 process.env.SOURCE_PRODUCTHUNT = "false";
 process.env.SOURCE_X = "false";
 process.env.SOURCE_LINKEDIN = "false";
+// Off: their live APIs are not intercepted above, and a $0 deterministic run
+// must never touch the network.
+process.env.SOURCE_STACKEXCHANGE = "false";
+process.env.SOURCE_GITHUB = "false";
 process.env.OPENAI_API_KEY ??= "sk-seed-local-not-a-real-key";
 
 const report = await runPipeline();

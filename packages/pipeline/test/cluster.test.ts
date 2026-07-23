@@ -118,3 +118,31 @@ describe("topByEngagement postedAt tiebreak", () => {
     expect(topByEngagement([recent, engaged], 2)[0]!.sourcePostId).toBe("engaged");
   });
 });
+
+describe("chunkByEngagement", () => {
+  const posts = [
+    post("low", { points: 1 }),
+    post("high", { points: 100 }),
+    post("mid", { points: 50 }),
+    post("tiny", { points: 0 }),
+    post("top", { points: 999 }),
+  ];
+
+  it("splits into engagement-ordered chunks of the given size", async () => {
+    const { chunkByEngagement } = await import("../src/stages/themes");
+    const chunks = chunkByEngagement(posts, 2);
+    expect(chunks.map((c) => c.map((p) => p.sourcePostId))).toEqual([
+      ["top", "high"],
+      ["mid", "low"],
+      ["tiny"],
+    ]);
+  });
+
+  it("returns no chunks for empty input and does not mutate its input", async () => {
+    const { chunkByEngagement } = await import("../src/stages/themes");
+    expect(chunkByEngagement([], 3)).toEqual([]);
+    const before = posts.map((p) => p.sourcePostId);
+    chunkByEngagement(posts, 2);
+    expect(posts.map((p) => p.sourcePostId)).toEqual(before);
+  });
+});

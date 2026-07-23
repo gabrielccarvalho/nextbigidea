@@ -2,7 +2,12 @@ name: weekly-pipeline
 on:
   schedule:
     - cron: "0 9 * * 1" # Mondays 09:00 UTC
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      since_days:
+        description: "Days of history to fetch — raise for a one-off backfill run"
+        required: false
+        default: "7"
 
 jobs:
   run:
@@ -18,23 +23,23 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Install Playwright browsers
-        run: pnpm --filter @workspace/pipeline exec playwright install --with-deps chromium
+      # No Playwright install: the registered adapters (HN, Stack Exchange,
+      # GitHub) are plain HTTP. Only the unregistered X/LinkedIn scrapers ever
+      # needed a browser.
       - name: Run pipeline
         id: pipeline
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           PIPELINE_MONTHLY_USD_CAP: "5"
-          SOURCE_REDDIT: "true"
+          PIPELINE_SINCE_DAYS: ${{ inputs.since_days || '7' }}
           SOURCE_HACKERNEWS: "true"
-          SOURCE_PRODUCTHUNT: ${{ vars.SOURCE_PRODUCTHUNT || 'false' }}
-          SOURCE_X: ${{ vars.SOURCE_X || 'false' }}
-          SOURCE_LINKEDIN: ${{ vars.SOURCE_LINKEDIN || 'false' }}
-          REDDIT_USER_AGENT: ${{ vars.REDDIT_USER_AGENT || 'demand-ideas-bot/0.1' }}
-          PRODUCTHUNT_TOKEN: ${{ secrets.PRODUCTHUNT_TOKEN }}
-          X_SESSION_COOKIE: ${{ secrets.X_SESSION_COOKIE }}
-          LINKEDIN_SESSION_COOKIE: ${{ secrets.LINKEDIN_SESSION_COOKIE }}
+          SOURCE_STACKEXCHANGE: "true"
+          SOURCE_GITHUB: "true"
+          # The workflow's own token is enough for /search/issues (30 req/min).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Optional: lifts the Stack Exchange quota from 300 to 10,000 req/day.
+          STACKEXCHANGE_KEY: ${{ secrets.STACKEXCHANGE_KEY }}
         run: pnpm --filter @workspace/pipeline start
       - name: Open an issue on failure
         if: failure()
