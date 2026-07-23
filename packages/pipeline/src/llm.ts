@@ -69,8 +69,10 @@ export class OpenAiClient implements LlmClient {
   private client: OpenAI;
   private spentUsd = 0;
 
-  constructor(apiKey: string) {
-    this.client = new OpenAI({ apiKey });
+  // `client` is injectable so tests can drive the truncation/retry paths with a
+  // fake — production callers pass only the key.
+  constructor(apiKey: string, client?: OpenAI) {
+    this.client = client ?? new OpenAI({ apiKey });
   }
 
   get spentMillicents(): number {
@@ -88,13 +90,33 @@ export class OpenAiClient implements LlmClient {
     opts: { maxTokens?: number; tier?: Tier; schema?: Record<string, unknown> } = {},
   ): Promise<string> {
     const tier = opts.tier ?? "quality";
-    const res = await this.client.responses.create({
-      model: RATES[tier].model,
-      input: prompt,
-      max_output_tokens: opts.maxTokens ?? 2048,
-      ...(opts.schema ? { text: { format: envelope(opts.schema) } } : {}),
-    });
+    const budget = opts.maxTokens ?? 2048;
+
+    // max_output_tokens is spent on REASONING before any visible text. Measured live
+    // (2026-07-23): a 100-post classify batch burned all 1,024 tokens on reasoning and
+    // returned status:"incomplete" with an EMPTY output_text — which parsed to an empty
+    // set and silently zeroed whole classification batches. Two defences:
+    //   1. bulk-tier calls are mechanical, so ask for low reasoning effort;
+    //   2. a truncated schema call is retried ONCE with 4x the budget, and a retry
+    //      that still truncates is at least loud.
+    const request = (maxTokens: number) =>
+      this.client.responses.create({
+        model: RATES[tier].model,
+        input: prompt,
+        max_output_tokens: maxTokens,
+        ...(tier === "bulk" ? { reasoning: { effort: "low" as const } } : {}),
+        ...(opts.schema ? { text: { format: envelope(opts.schema) } } : {}),
+      });
+
+    let res = await request(budget);
     if (res.usage) this.track(tier, res.usage);
+    if (opts.schema && res.status === "incomplete") {
+      res = await request(budget * 4);
+      if (res.usage) this.track(tier, res.usage);
+      if (res.status === "incomplete") {
+        console.error(`llm: schema response truncated twice (budget ${budget} then ${budget * 4})`);
+      }
+    }
 
     const text = res.output_text ?? "";
     if (!opts.schema) return text;
@@ -119,7 +141,9 @@ export class OpenAiClient implements LlmClient {
         numbered,
       {
         tier: "bulk",
-        maxTokens: 1024,
+        // Room for low-effort reasoning PLUS up to 100 indices; 1024 was eaten
+        // whole by reasoning alone (see complete()).
+        maxTokens: 4096,
         schema: { type: "array", items: { type: "integer" } },
       },
     );
