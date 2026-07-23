@@ -51,8 +51,23 @@ describe("keywordPrefilter", () => {
     ["somebody-should", "Somebody should build a service for this"],
     ["any-recommendations", "Any recommendations? Need something for invoicing"],
     ["recommendations-for", "Recommendations for a tool that does exports?"],
-  ])("matches the %s phrasing", (_label, text) => {
-    expect(keywordPrefilter([post(text)])).toHaveLength(1);
+    // Phrasings the adapters explicitly fetch (DEMAND_PHRASES) — every fetched
+    // phrase must survive the prefilter, or the fetch and the filter disagree
+    // about what demand looks like (the exact bug the HN rewrite fixed).
+    ["bare-wish", "Really wish there was a way to diff these"],
+    ["wish-someone-would", "Wish someone would make this less painful"],
+    ["why-is-there-no", "Why is there no decent way to export this?"],
+    ["why-isnt-there", "Why isn't there something like Stripe for this?"],
+    ["no-good-way", "There is no good way to test this today"],
+    ["does-anyone-know-bare", "Does anyone know of something similar?"],
+    ["there-should-be", "There should be an app for splitting these bills"],
+    // Software Recommendations SE question style: the whole site is demand,
+    // and its titles lead with the artefact, not with "I wish".
+    ["se-software-to", "", "Software to batch-rename photos by EXIF date?"],
+    ["se-tool-for", "", "Tool for monitoring a folder and syncing it?"],
+  ])("matches the %s phrasing", (...args) => {
+    const [, text, title] = args;
+    expect(keywordPrefilter([post(text, title ?? "")])).toHaveLength(1);
   });
 
   it("rejects ordinary chatter that mentions no unmet need", () => {

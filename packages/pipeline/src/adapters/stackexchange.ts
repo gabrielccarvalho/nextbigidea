@@ -86,6 +86,29 @@ export const stackExchangeAdapter: SourceAdapter = {
         }
       }
     }
+    // softwarerecs harvest: on that site every question IS a tool request, so
+    // phrase search under-collects badly ("Software to batch-rename photos?"
+    // contains no demand phrase). Pull the whole window instead; the loosest
+    // SIGNAL_PATTERNS regex and the paid classifier do the filtering.
+    for (let page = 1; page <= 3; page++) {
+      const url =
+        `https://api.stackexchange.com/2.3/questions` +
+        `?site=softwarerecs&filter=withbody&sort=creation&order=desc` +
+        `&fromdate=${sinceTs}&pagesize=100&page=${page}${key}`;
+      try {
+        const res = await fetchImpl(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = (await res.json()) as { backoff?: number; has_more?: boolean };
+        all.push(...parseSeItems(json, "softwarerecs"));
+        if (typeof json.backoff === "number" && json.backoff > 0) {
+          await sleep(json.backoff * 1000);
+        }
+        if (!json.has_more) break;
+      } catch (err) {
+        errors.push(`softwarerecs/harvest p${page}: ${err instanceof Error ? err.message : String(err)}`);
+        break;
+      }
+    }
     if (all.length === 0 && errors.length > 0) {
       throw new Error(`stackexchange: all ${errors.length} queries failed — ${errors[0]}`);
     }

@@ -84,3 +84,15 @@ describe("decodeHtml", () => {
     expect(decodeHtml("<i>x</i>&nbsp;&gt; y")).toBe("x > y");
   });
 });
+
+describe("funnel visibility", () => {
+  it("records prefiltered/relevant/themes counts in stats", () => {
+    const r = new PipelineRunReport();
+    r.addSource("hackernews", 900);
+    r.prefiltered = 700;
+    r.relevant = 120;
+    r.themes = 25;
+    const stats = r.toStats();
+    expect(stats.funnel).toEqual({ prefiltered: 700, relevant: 120, themes: 25 });
+  });
+});

@@ -11,17 +11,36 @@ import type { AdapterDeps, PipelineEnv, RawPost, SourceAdapter } from "../types"
 // matches the literal demand expression the prefilter is also looking for.
 // Exported: the Stack Exchange and GitHub adapters search the same quoted
 // phrases, so all sources mine one shared definition of "demand phrasing".
+//
+// Every phrase here MUST have a matching SIGNAL_PATTERNS regex in
+// stages/relevance.ts (each has a test case), or fetched posts die at the
+// prefilter — the exact fetch-vs-filter disagreement the comment-search
+// rewrite fixed. Leading pronouns are dropped where possible ("wish there
+// was", not "i wish there was") so the literal match also catches "really
+// wish there was" etc.
 export const DEMAND_PHRASES = [
-  '"i wish there was"',
-  '"i wish someone would"',
+  '"wish there was"',
+  '"wish someone would"',
   '"is there a tool"',
   '"is there an app"',
+  '"is there any tool"',
+  '"is there a service"',
   '"looking for a tool"',
+  '"looking for an app"',
+  '"looking for software"',
   '"does anyone know of"',
+  '"does anyone know a"',
   '"would pay for"',
+  "\"i'd pay for\"",
   '"someone should build"',
+  '"someone should make"',
   '"there is no good"',
+  '"there\'s no good"',
+  '"there is no way"',
   '"why is there no"',
+  '"why isn\'t there"',
+  '"there should be an app"',
+  '"i need a tool"',
 ];
 
 interface HnHit {

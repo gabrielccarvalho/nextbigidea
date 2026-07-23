@@ -85,7 +85,7 @@ describe("githubAdapter.fetchPosts", () => {
     expect(urls.every((u) => u.includes("advanced_search=true"))).toBe(true);
     expect(urls.every((u) => u.includes(encodeURIComponent("is:issue")))).toBe(true);
     expect(urls.every((u) => u.includes(encodeURIComponent("created:>2026-06-01")))).toBe(true);
-    expect(urls.some((u) => u.includes(encodeURIComponent('"i wish there was"')))).toBe(true);
+    expect(urls.some((u) => u.includes(encodeURIComponent('"wish there was"')))).toBe(true);
     expect(headers.every((h) => h["Authorization"] === "Bearer ghp_test")).toBe(true);
     expect(headers.every((h) => typeof h["User-Agent"] === "string" && h["User-Agent"].length > 0)).toBe(true);
     // The search bucket is 30 req/min — the adapter must pace between requests.

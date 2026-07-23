@@ -9,7 +9,7 @@ import { githubAdapter } from "./adapters/github";
 import { upsertRawPosts } from "./stages/normalize";
 import { dedupeInMemory } from "./stages/dedupe";
 import { OpenAiClient } from "./llm";
-import { filterRelevant } from "./stages/relevance";
+import { filterRelevant, keywordPrefilter } from "./stages/relevance";
 import { clusterPosts, MAX_CLUSTER_POSTS } from "./stages/cluster";
 import { chunkByEngagement } from "./stages/themes";
 import { enrichTheme, persistIdea } from "./stages/enrich";
@@ -103,6 +103,10 @@ export async function runPipeline(): Promise<PipelineRunReport> {
     if (shouldContinue()) {
       relevant = await filterRelevant(deduped, client, shouldContinue);
     }
+    // Recomputing the prefilter for the count is negligible next to one fetch;
+    // it keeps filterRelevant's signature untouched.
+    report.prefiltered = keywordPrefilter(deduped).length;
+    report.relevant = relevant.length;
 
     // 4+5. Cluster into themes, then enrich + persist — chunk by chunk, aborting
     // before the cap is exceeded. A weekly run rarely exceeds one chunk, so this
@@ -114,6 +118,7 @@ export async function runPipeline(): Promise<PipelineRunReport> {
     for (const chunk of chunkByEngagement(relevant, MAX_CLUSTER_POSTS)) {
       if (!shouldContinue()) break;
       const themes = await clusterPosts(chunk, client);
+      report.themes += themes.length;
       for (const theme of themes) {
         if (!shouldContinue()) break;
         const idea = await enrichTheme(theme.themeTitle, theme.posts, client);

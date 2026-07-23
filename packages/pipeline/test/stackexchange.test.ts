@@ -73,13 +73,29 @@ describe("stackExchangeAdapter.fetchPosts", () => {
       sleep: async () => {},
     });
     expect(posts.length).toBeGreaterThan(0);
-    // Every requested URL hits /search/advanced with a quoted phrase and a fromdate.
-    expect(urls.every((u) => u.includes("/2.3/search/advanced?"))).toBe(true);
+    // Every requested URL is a phrase search or the softwarerecs harvest, always windowed.
+    expect(urls.every((u) => u.includes("/2.3/search/advanced?") || u.includes("/2.3/questions?"))).toBe(true);
     expect(urls.every((u) => u.includes("fromdate="))).toBe(true);
     expect(urls.some((u) => u.includes("site=softwarerecs"))).toBe(true);
     expect(urls.some((u) => u.includes("site=superuser"))).toBe(true);
     // Phrases arrive quoted so SE does literal matching, mirroring the HN adapter.
-    expect(urls.some((u) => u.includes(encodeURIComponent('"i wish there was"')))).toBe(true);
+    expect(urls.some((u) => u.includes(encodeURIComponent('"wish there was"')))).toBe(true);
+  });
+
+  it("also harvests softwarerecs wholesale — every question there is a tool request", async () => {
+    const urls: string[] = [];
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      urls.push(String(input));
+      return { ok: true, json: async () => fixture } as unknown as Response;
+    });
+    await stackExchangeAdapter.fetchPosts(new Date("2026-01-01"), env(), {
+      fetchImpl,
+      sleep: async () => {},
+    });
+    const harvest = urls.filter((u) => u.includes("/2.3/questions?"));
+    expect(harvest.length).toBeGreaterThan(0);
+    expect(harvest.every((u) => u.includes("site=softwarerecs"))).toBe(true);
+    expect(harvest.every((u) => u.includes("filter=withbody"))).toBe(true);
   });
 
   it("adds the key parameter only when a key is configured", async () => {

@@ -52,18 +52,26 @@ export async function clusterPosts(
   const listing = bounded
     .map((p) => `${p.source}:${p.sourcePostId} => ${(p.title ?? p.content).slice(0, 200)}`)
     .join("\n");
+  // "Be exhaustive" and "single-post theme is normal" are load-bearing: without
+  // them the model volunteers only a handful of tidy multi-post groups and
+  // silently discards the rest. The 180-day backfill produced 6 ideas from
+  // ~1,000 classified-relevant posts for exactly this reason — the funnel died
+  // here, not at fetch or classification.
   const prompt =
     `Group these posts into distinct product-demand themes. Each theme is one buildable SaaS idea.\n` +
+    `Be exhaustive: every post expressing a concrete buildable product need must appear in exactly one theme, ` +
+    `and a single-post theme is normal — never drop a post because nothing else resembles it. ` +
+    `Omit only posts that express no product need at all.\n` +
     `Each theme has a short title and the keys of the posts belonging to it.\n\n` +
     listing;
   // Grouping is mechanical comparison, not authored prose, so it runs on the bulk tier.
   //
-  // maxTokens raised to 4096 (from the complete() default of 2048): a large theme listing
-  // can otherwise get cut off mid-JSON. A truncated response still fails to parse and is
-  // safely dropped to `[]` by parseThemes' existing guard — themes are lost, but nothing
-  // is ever corrupted.
+  // maxTokens 8192: exhaustive clustering of a full 150-post chunk can emit a hundred-odd
+  // themes, and a response cut off mid-JSON still fails to parse and is safely dropped to
+  // `[]` by parseThemes' existing guard — themes are lost, but nothing is ever corrupted.
+  // Silent loss of a whole chunk is exactly what the funnel stats exist to surface.
   const themes = parseThemes(
-    await client.complete(prompt, { maxTokens: 4096, tier: "bulk", schema: THEMES_SCHEMA }),
+    await client.complete(prompt, { maxTokens: 8192, tier: "bulk", schema: THEMES_SCHEMA }),
   );
   const result: { themeTitle: string; posts: RawPost[]; matchedIdeaId: number | null }[] = [];
   for (const t of themes) {

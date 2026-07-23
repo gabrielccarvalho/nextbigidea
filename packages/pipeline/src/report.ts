@@ -11,6 +11,12 @@ export class PipelineRunReport {
   ideasCreated = 0;
   ideasUpdated = 0;
   spentMillicents = 0;
+  // Funnel counts. The 180-day backfill produced 6 ideas from 1,643 fetched
+  // posts and nothing in the output said which stage swallowed them — these
+  // exist so a collapse is visible in the stats, not reconstructed by hand.
+  prefiltered = 0;
+  relevant = 0;
+  themes = 0;
 
   addSource(name: string, fetched: number, failed = false, error?: string): void {
     this.sources[name] = { fetched, failed, ...(error ? { error } : {}) };
@@ -58,6 +64,7 @@ export class PipelineRunReport {
   toStats(): Record<string, unknown> {
     return {
       sources: this.sources,
+      funnel: { prefiltered: this.prefiltered, relevant: this.relevant, themes: this.themes },
       ideasCreated: this.ideasCreated,
       ideasUpdated: this.ideasUpdated,
       spentUsd: (this.spentMillicents / 100000).toFixed(4),
@@ -77,6 +84,7 @@ export class PipelineRunReport {
         ([n, s]) => `| ${n} | ${s.fetched} | ${s.failed} | ${s.error ?? ""} |`,
       ),
       "",
+      `- funnel: ${this.prefiltered} prefiltered → ${this.relevant} relevant → ${this.themes} themes`,
       `- ideas created: ${this.ideasCreated}`,
       `- ideas updated: ${this.ideasUpdated}`,
       `- estimated spend: $${(this.spentMillicents / 100000).toFixed(4)}`,
