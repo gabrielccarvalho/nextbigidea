@@ -52,11 +52,14 @@
 }
 
 :root {
-    --background: oklch(0.141 0.005 285.823);
+    /* Graphite, not black: the page background sits a step above true black so
+       the UI reads as a surface. Card/popover keep the same lightness delta
+       above it that they had before, so panels still register as elevated. */
+    --background: oklch(0.185 0.005 285.823);
     --foreground: oklch(0.985 0 0);
-    --card: oklch(0.21 0.006 285.885);
+    --card: oklch(0.25 0.006 285.885);
     --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.21 0.006 285.885);
+    --popover: oklch(0.25 0.006 285.885);
     --popover-foreground: oklch(0.985 0 0);
     --primary: oklch(0.432 0.095 166.913);
     --primary-foreground: oklch(0.979 0.021 166.113);
