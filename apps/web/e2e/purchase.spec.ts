@@ -51,15 +51,15 @@ test.describe("purchase flow", () => {
       }),
     );
 
-    // ---- 1. Signed in, but not subscribed: the idea is locked. -------------------------------
+    // ---- 1. Signed in, but has not paid: the idea is locked. ---------------------------------
     await page.goto(IDEAS);
 
-    const teaser = page.getByText(E2E.ideaTitle, { exact: true });
-    await expect(teaser).toBeVisible();
-    // The one-liner is rendered by IdeaCard and withheld by LockedTeaser, so its absence is a
-    // real assertion about access, not about styling.
+    // A viewer without access gets NO information about locked ideas — not even the title.
+    // The LockedBlocker renders decorative skeletons plus the paywall CTA, nothing more, so
+    // both fields being absent is a real assertion about access, not about styling.
+    await expect(page.getByText(E2E.ideaTitle, { exact: true })).toHaveCount(0);
     await expect(page.getByText(E2E.ideaOneLiner)).toHaveCount(0);
-    await expect(page.getByText("Unlock to view").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Unlock now" })).toBeVisible();
 
     // ---- 2. Start checkout. THIS is the step that calls AbacatePay for real. -----------------
     // The response body must be captured HERE, inside the route handler, rather than via
@@ -151,9 +151,11 @@ test.describe("purchase flow", () => {
     expect(daysGranted).toBeLessThan(370);
 
     // ---- 5. The content is unlocked in the browser. ------------------------------------------
+    // The paid view is paginated 20 per page; the seeded idea (demand 82) is expected on
+    // page 1 of the near-empty e2e database.
     await page.goto(IDEAS);
+    await expect(page.getByText(E2E.ideaTitle, { exact: true })).toBeVisible();
     await expect(page.getByText(E2E.ideaOneLiner)).toBeVisible();
-    await expect(page.getByText("Unlock to view")).toHaveCount(0);
     // The paywall CTA is gone once access is granted.
     await expect(page.getByRole("button", { name: "Unlock now" })).toHaveCount(0);
   });
@@ -166,8 +168,8 @@ test.describe("signed out", () => {
   test("a signed-out visitor is routed to sign in before checkout", async ({ page }) => {
     await page.goto(IDEAS);
 
-    // No checkout button at all — signed-out users get a link to /login instead, which is what
-    // replaced the old checkout→401→/account bounce.
+    // No checkout button at all — signed-out users get a link to /login instead of a
+    // checkout call that would 401.
     await expect(page.getByRole("button", { name: "Unlock now" })).toHaveCount(0);
 
     await page.getByRole("link", { name: "Sign in to unlock" }).click();

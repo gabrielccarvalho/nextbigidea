@@ -16,7 +16,7 @@ export default function PrivacyPage() {
       <h2>1. What we collect</h2>
       <ul>
         <li><strong>Account data</strong> — your email address, and your name and profile picture if you sign in with Google.</li>
-        <li><strong>Payment data</strong> — subscription status, period dates, and a payment reference. <strong>We never see or store your card number</strong>; our payment processor handles it.</li>
+        <li><strong>Payment data</strong> — purchase status and a payment reference. <strong>We never see or store your card number</strong>; our payment processor handles it.</li>
         <li><strong>Technical data</strong> — standard server logs, including IP address and browser type, kept briefly for security and debugging.</li>
       </ul>
       <p>We do not use advertising trackers or third-party analytics cookies.</p>
@@ -25,7 +25,7 @@ export default function PrivacyPage() {
       <ul>
         <li>To sign you in and keep your session working.</li>
         <li>To determine whether your access is active.</li>
-        <li>To email you about billing, renewals, and material changes to the service.</li>
+        <li>To email you about billing and material changes to the service.</li>
         <li>To keep the service secure and diagnose faults.</li>
       </ul>
 
@@ -58,7 +58,7 @@ export default function PrivacyPage() {
       <h2>5. Sub-processors</h2>
       <p>We share the minimum necessary data with:</p>
       <ul>
-        <li><strong>AbacatePay</strong> — payment processing and subscription billing.</li>
+        <li><strong>AbacatePay</strong> — payment processing.</li>
         <li><strong>Google</strong> — optional sign-in.</li>
         <li><strong>Resend</strong> — transactional and sign-in emails.</li>
         <li><strong>Anthropic</strong> — analysis of public posts. We do not send your personal data to this provider.</li>

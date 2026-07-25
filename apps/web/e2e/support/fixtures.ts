@@ -10,8 +10,8 @@ export const E2E = {
   userName: "E2E Purchase User",
   ideaSlug: "e2e-locked-idea",
   ideaTitle: "E2E Locked Idea",
-  /** Rendered only by IdeaCard, never by LockedTeaser — the access assertion hinges on this. */
-  ideaOneLiner: "This one-liner is visible only to a paying subscriber.",
+  /** Rendered only by IdeaCard, never to a viewer without access — the access assertion hinges on this. */
+  ideaOneLiner: "This one-liner is visible only to a paying viewer.",
   ideaNiche: "E2E Fixtures",
 } as const;
 

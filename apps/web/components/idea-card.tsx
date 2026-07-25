@@ -2,7 +2,8 @@ import Link from "next/link";
 import type { Idea } from "@workspace/db";
 
 // Full card — used for free ideas and for paid viewers only. Callers must
-// never render this for a locked idea; use LockedTeaser instead.
+// never render this for an idea the viewer has not unlocked; locked ideas
+// are represented only by the data-free LockedBlocker.
 export function IdeaCard({ idea }: { idea: Idea }) {
   return (
     <Link

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PAYWALL_CTA, PRICING } from "@/lib/content";
 
+type Status = "idle" | "loading" | "pending" | "error";
+
 export function PaywallCta({
   authenticated,
   variant = "standalone",
@@ -11,21 +13,27 @@ export function PaywallCta({
   authenticated: boolean;
   variant?: "standalone" | "embedded";
 }) {
-  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<Status>("idle");
   const pathname = usePathname();
 
   async function buy() {
-    setLoading(true);
-    const res = await fetch("/api/payments/checkout", { method: "POST" });
-    if (!res.ok) {
-      setLoading(false);
-      window.location.href = "/account";
+    setStatus("loading");
+    let res: Response;
+    try {
+      res = await fetch("/api/payments/checkout", { method: "POST" });
+    } catch {
+      setStatus("error");
       return;
     }
-    // The route answers 200 with `{ alreadyActive: true }` when a subscription is already
-    // running, or `{ pendingCheckout: true }` when one was started recently and is still in
-    // flight. Reading `url` off either shape used to navigate to `undefined` — both fall
-    // through to the same "go to /account" branch below instead.
+    if (!res.ok) {
+      setStatus("error");
+      return;
+    }
+    // The route answers 200 with `{ alreadyActive: true }` when this user has
+    // already paid (reload — the server will re-render everything unlocked),
+    // or `{ pendingCheckout: true }` when a checkout started recently is still
+    // in flight. Neither carries a `url`, so each gets its own branch instead
+    // of navigating to `undefined`.
     const body = (await res.json()) as {
       url?: string;
       alreadyActive?: boolean;
@@ -35,21 +43,24 @@ export function PaywallCta({
       window.location.href = body.url;
       return;
     }
-    setLoading(false);
-    window.location.href = "/account";
+    if (body.alreadyActive) {
+      window.location.reload();
+      return;
+    }
+    setStatus(body.pendingCheckout ? "pending" : "error");
   }
 
   // "embedded" is used when this CTA sits inside a card that already states the
-  // price and renewal terms (e.g. the pricing section) — rendering the heading
+  // price and payment terms (e.g. the pricing section) — rendering the heading
   // and subtext again there would duplicate that disclosure. "standalone" (the
-  // default) keeps the full self-contained appearance used on /ideas,
-  // /ideas/[slug], and /account.
+  // default) keeps the full self-contained appearance used on /ideas and
+  // /ideas/[slug].
   return (
     <div className="rounded-lg border bg-muted/30 p-6 text-center">
       {variant === "standalone" && (
         <>
           <h2 className="text-lg font-semibold">
-            {PAYWALL_CTA.headlinePrefix} — {PRICING.amountBRL}/{PRICING.term}
+            {PAYWALL_CTA.headlinePrefix} — {PRICING.amountBRL}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">{PAYWALL_CTA.subtext}</p>
         </>
@@ -57,20 +68,25 @@ export function PaywallCta({
       {authenticated ? (
         <button
           onClick={buy}
-          disabled={loading}
+          disabled={status === "loading"}
           className="mt-4 rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background disabled:opacity-50"
         >
-          {loading ? "Redirecting…" : PAYWALL_CTA.ctaAuthenticated}
+          {status === "loading" ? "Redirecting…" : PAYWALL_CTA.ctaAuthenticated}
         </button>
       ) : (
         // Signed out: go sign in first, then return to this exact page to complete checkout.
-        // Replaces the old checkout→401→/account bounce.
         <Link
           href={`/login?next=${encodeURIComponent(pathname)}`}
           className="mt-4 inline-block rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background"
         >
           {PAYWALL_CTA.ctaSignedOut}
         </Link>
+      )}
+      {status === "pending" && (
+        <p className="mt-3 text-sm text-muted-foreground">{PAYWALL_CTA.pendingMessage}</p>
+      )}
+      {status === "error" && (
+        <p className="mt-3 text-sm font-medium text-destructive">{PAYWALL_CTA.errorMessage}</p>
       )}
     </div>
   );

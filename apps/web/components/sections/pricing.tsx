@@ -37,7 +37,7 @@ export function Pricing() {
           </h3>
           <p className="mt-4 flex items-baseline gap-2">
             <span className="text-3xl font-bold tracking-tight">{PRICING.amountBRL}</span>
-            <span className="text-muted-foreground">/{PRICING.term}</span>
+            <span className="text-muted-foreground">{PRICING.paymentModel}</span>
           </p>
           <p className="mt-1 font-mono text-[0.65rem] text-muted-foreground">
             {PRICING.amountUSDApprox}
@@ -50,8 +50,8 @@ export function Pricing() {
             ))}
           </ul>
 
-          {/* Renewal and cancellation terms are disclosed before purchase, not
-              only in the Terms of Service. */}
+          {/* Payment terms are disclosed before purchase, not only in the
+              Terms of Service. */}
           <ul className="mt-6 space-y-1 border-t border-border pt-4">
             {PRICING_SECTION.terms.map((term) => (
               <li key={term} className="text-[0.7rem] leading-relaxed text-muted-foreground">

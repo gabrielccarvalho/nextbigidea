@@ -382,10 +382,10 @@ export async function POST(req: NextRequest) {
       // the same subscription. The `cancelled` branch has already returned 200 by then and will
       // never be redelivered to repair anything written afterwards, so a fresh row inserted here
       // with `cancelled_at = NULL` — and, being the newest, the FURTHEST `period_end` — silently
-      // resurrects the subscription: `/account` renders "Subscription active" with a Cancel button
-      // for a subscription that is dead at the provider, and the checkout guard's
-      // `paid ∧ future ∧ cancelled_at IS NULL` predicate returns `alreadyActive`, blocking the very
-      // resubscribe this feature exists to enable. Carry the cancellation forward instead.
+      // resurrects the subscription in our records: the row claims a live subscription that is
+      // dead at the provider. Access no longer depends on it (one-time purchase model), but this
+      // bookkeeping must keep reflecting what AbacatePay actually did. Carry the cancellation
+      // forward instead.
       //
       // Read under the lock, so this is serialized against the `cancelled` branch (which takes the
       // same user's advisory lock). Both orderings are therefore correct: if `cancelled` committed

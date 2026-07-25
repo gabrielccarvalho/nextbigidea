@@ -64,9 +64,9 @@ export async function seedUserAndSession(): Promise<{
 }
 
 /**
- * A published, NON-free idea — the thing the paywall is actually gating. Its one-liner is
- * rendered by IdeaCard and withheld by LockedTeaser, which is what makes it a usable probe for
- * "does this viewer have access".
+ * A published, NON-free idea — the thing the paywall is actually gating. Nothing about it
+ * (not even the title) is rendered to a viewer without access, which is what makes it a
+ * usable probe for "does this viewer have access".
  */
 export async function seedLockedIdea(): Promise<void> {
   await sql(

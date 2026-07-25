@@ -1,10 +1,12 @@
 import type { Idea } from "@workspace/db";
 
-// A branded type that ONLY `toTeaserIdea` can produce.
+// A branded type that ONLY `toTeaserIdea` can produce. Used by the locked
+// idea detail view (app/ideas/[slug]), the one place an unpaid viewer may
+// still see an idea's title and niche.
 //
 // Why not just `Pick<Idea, "title" | "niche">`: TypeScript's excess-property
-// check fires only on object LITERALS. A plain Pick would still accept
-// `<LockedTeaser idea={idea} />` passing a full Idea, because Idea is
+// check fires only on object LITERALS. A plain Pick would still accept a
+// full Idea being passed where a teaser is expected, because Idea is
 // structurally assignable to a subset of itself — no compile error, and every
 // locked field silently crosses the wire again. The brand makes a full Idea
 // structurally incompatible, so the leak becomes unrepresentable rather than

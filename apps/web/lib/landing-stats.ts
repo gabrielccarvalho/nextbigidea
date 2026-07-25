@@ -3,12 +3,11 @@ import { count, eq, gte, sql } from "drizzle-orm";
 import { applyStatsFloor, type LandingStats } from "./stats";
 
 // Kept separate from stats.ts so the floor logic stays unit-testable without a
-// database, matching the computeAccess / getViewerAccess split in this codebase.
+// database, matching the orderIdeasForListing / queries.ts split in packages/db.
 //
 // `@workspace/db` is imported dynamically, inside this function, rather than
 // as a static top-level import. `packages/db/src/client.ts` throws at
-// *module-evaluation time* when DATABASE_URL is unset (mirrors the
-// access.ts precedent for computeAccess). A static import gets evaluated
+// *module-evaluation time* when DATABASE_URL is unset. A static import gets evaluated
 // eagerly as soon as this module is resolved — before getLandingStats() (or
 // even the try/catch around it) ever runs — so it would crash page.tsx ->
 // WhyEvidence -> landing-stats.ts before any error handling has a chance to

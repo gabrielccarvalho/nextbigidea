@@ -7,7 +7,7 @@ import { Logo } from "@/components/logo";
 import { LoginButton } from "@/components/login-button";
 import { LOGIN } from "@/lib/content";
 
-// Dedicated sign-in surface. `next` is where the user came from (an idea page, /account);
+// Dedicated sign-in surface. `next` is where the user came from (e.g. an idea page);
 // safeNext() reduces it to a trusted same-origin path before it becomes the OAuth callback.
 export default async function LoginPage({
   searchParams,

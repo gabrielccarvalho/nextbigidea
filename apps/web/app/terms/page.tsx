@@ -33,21 +33,20 @@ export default function TermsPage() {
         personal — do not share your access with others.
       </p>
 
-      <h2>3. Subscriptions, billing, and renewal</h2>
+      <h2>3. Payment and billing</h2>
       <p>
-        Full access costs {PRICING.amountBRL} per {PRICING.term} ({PRICING.amountUSDApprox}),
-        charged to a payment card. Prices are stated and charged in Brazilian reais; any figure
-        shown in another currency is an approximation for reference only, and the amount billed
-        will be in reais.
+        Full access costs {PRICING.amountBRL} ({PRICING.amountUSDApprox}), charged once to a
+        payment card. Prices are stated and charged in Brazilian reais; any figure shown in
+        another currency is an approximation for reference only, and the amount billed will be
+        in reais.
       </p>
       <ul>
         <li>
-          <strong>Your subscription renews automatically</strong> for another {PRICING.term} at the
-          then-current price, unless you cancel before the renewal date.
+          <strong>You pay once.</strong> There is no recurring charge, and we will not bill you
+          again unless you choose to make another purchase.
         </li>
-        <li>You may cancel at any time. Access continues until the end of the period you have already paid for.</li>
-        <li>Cancelling does not delete your account, and you keep access to the free ideas.</li>
-        <li>If we change the price, the new price applies only from your next renewal, and we will tell you before it takes effect.</li>
+        <li>One payment covers every idea published so far and every idea we publish after, for as long as we operate the service.</li>
+        <li>If we change the price, the new price applies only to purchases made after the change.</li>
       </ul>
       <p>
         {PRICING.freeIdeaCount} ideas are free to read without any payment or account.
@@ -55,8 +54,8 @@ export default function TermsPage() {
 
       <h2>4. Refunds</h2>
       <p>
-        You may cancel your first purchase within {PRICING.refundDays} days and receive a full
-        refund, for any reason or none. This reflects your right of regret under Article 49 of the
+        You may undo your purchase within {PRICING.refundDays} days and receive a full refund,
+        for any reason or none. This reflects your right of regret under Article 49 of the
         Brazilian Consumer Protection Code (Lei nº 8.078/1990). Write to{" "}
         <a href={`mailto:${COMPANY.email}`}>{COMPANY.email}</a> and we will process it.
       </p>
@@ -64,8 +63,8 @@ export default function TermsPage() {
       <h2>5. What you may and may not do with the ideas</h2>
       <p>
         <strong>You may build anything you find here.</strong> The ideas are not exclusive, we
-        claim no ownership of what you create, and we ask for no share of it. Every subscriber sees
-        the same ideas — you are paying for the evidence, not for exclusivity.
+        claim no ownership of what you create, and we ask for no share of it. Everyone who has
+        paid sees the same ideas — you are paying for the evidence, not for exclusivity.
       </p>
       <p>You may not:</p>
       <ul>
@@ -129,8 +128,8 @@ export default function TermsPage() {
       <h2>12. Termination</h2>
       <p>
         You may stop using the service at any time. We may suspend or terminate access if you
-        breach these terms — in which case we will refund any unused portion of your current period
-        unless the breach involved redistribution or abuse of the service.
+        breach these terms — in which case we will refund what you paid, unless the breach
+        involved redistribution or abuse of the service.
       </p>
 
       <h2>13. Changes to these terms</h2>

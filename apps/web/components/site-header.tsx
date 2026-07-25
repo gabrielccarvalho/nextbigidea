@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { cn } from "@workspace/ui/lib/utils";
 import { NAV } from "@/lib/content";
 import { Logo } from "@/components/logo";
-import { useSession } from "@/lib/auth-client";
+import { signOut, useSession } from "@/lib/auth-client";
 
 export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
@@ -40,15 +40,32 @@ export function SiteHeader() {
             </Link>
           ))}
         </nav>
-        <Link
-          href={session?.user ? "/account" : "/login"}
-          className={cn(
-            "text-sm text-muted-foreground transition-colors hover:text-foreground",
-            "ml-auto sm:ml-0",
-          )}
-        >
-          {session?.user ? "Account" : "Sign in"}
-        </Link>
+        {/* No /account page in the one-time purchase model — there is nothing to
+            manage, so a signed-in user just gets a way out of the session. */}
+        {session?.user ? (
+          <button
+            onClick={async () => {
+              await signOut();
+              window.location.reload();
+            }}
+            className={cn(
+              "text-sm text-muted-foreground transition-colors hover:text-foreground",
+              "ml-auto sm:ml-0",
+            )}
+          >
+            Sign out
+          </button>
+        ) : (
+          <Link
+            href="/login"
+            className={cn(
+              "text-sm text-muted-foreground transition-colors hover:text-foreground",
+              "ml-auto sm:ml-0",
+            )}
+          >
+            Sign in
+          </Link>
+        )}
         <Link
           href={NAV.cta.href}
           className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"

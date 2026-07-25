@@ -30,6 +30,14 @@ describe("copy rules", () => {
     "lifetime",
     "forever",
     "weekly cadence",
+    // One-time purchase model: subscription language must not reappear anywhere
+    // in the copy. "subscri" covers subscribe/subscriber/subscription.
+    "subscri",
+    "renew",
+    "annual",
+    "recurring",
+    "per year",
+    "/year",
   ];
 
   it.each(BANNED)("does not contain the banned phrase %s", (phrase) => {
@@ -61,7 +69,11 @@ describe("copy rules", () => {
 describe("pricing", () => {
   it("states the price in BRL", () => {
     expect(PRICING.amountBRL).toBe("R$110");
-    expect(PRICING.term).toBe("year");
+  });
+
+  it("describes the charge as a one-time payment", () => {
+    expect(PRICING.paymentModel).toBe("one-time payment");
+    expect(CORPUS).toContain("one-time payment");
   });
 
   it("marks the USD figure as approximate", () => {

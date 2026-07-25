@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db, purchases } from "@workspace/db";
 import { getPaymentProvider } from "@/lib/payments";
@@ -20,26 +20,17 @@ export async function POST() {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   }
 
-  // A second subscription is illegitimate only while access is STILL ACTIVE AND NOT
-  // CANCELLED. Once the period has lapsed the user must be able to subscribe again — the
-  // old lifetime guard rejected every charge forever, which would have made re-subscribing
-  // impossible. `cancelledAt IS NOT NULL` means AbacatePay already stopped the recurring
-  // charges on the old subscription (irreversibly — there is no "un-cancel"), so a new
-  // checkout here starts a brand new subscription rather than colliding with a live one.
+  // One-time purchase model: any paid row means this user already owns full
+  // access with no expiry (mirrors getViewerAccess), so a second charge is
+  // never legitimate. This must stay aligned with the access check — a looser
+  // predicate here would let an already-paid user buy the same thing twice.
   const active = await db
-    .select({ periodEnd: purchases.periodEnd })
+    .select({ id: purchases.id })
     .from(purchases)
-    .where(
-      and(
-        eq(purchases.userId, session.user.id),
-        eq(purchases.status, "paid"),
-        gt(purchases.periodEnd, new Date()),
-        isNull(purchases.cancelledAt),
-      ),
-    )
+    .where(and(eq(purchases.userId, session.user.id), eq(purchases.status, "paid")))
     .limit(1);
   if (active.length > 0) {
-    return NextResponse.json({ alreadyActive: true, periodEnd: active[0]!.periodEnd });
+    return NextResponse.json({ alreadyActive: true });
   }
 
   // Second guard: a `pending` row created recently means a checkout is already in flight —
@@ -48,16 +39,12 @@ export async function POST() {
   // subscription at AbacatePay, so letting a second one through here would double-bill the
   // customer every year forever, and nothing in this app reconciles duplicate subscriptions.
   //
-  // KNOWN WEAKNESS, newly load-bearing. This guard is TIME-based, not state-based: a user who
-  // starts a checkout and returns more than PENDING_CHECKOUT_WINDOW_MS later, before the `paid`
-  // webhook has landed, sails past it and mints a second live auto-renewing subscription. That
-  // hole is pre-existing and unchanged here. What IS new is who reaches it: a cancelled-but-
-  // unexpired user is now excluded from the `alreadyActive` guard above (by design — that is what
-  // makes resubscribing possible), so an entire cohort that the strong state-based guard used to
-  // stop now depends on this weaker one. Behavior is deliberately left as-is; closing it properly
-  // needs a state-based check (e.g. reconciling live subscriptions with the provider, or a unique
-  // partial index over a user's in-flight checkouts) rather than a longer window, which would only
-  // trade double-billing for blocking legitimate retries.
+  // KNOWN WEAKNESS. This guard is TIME-based, not state-based: a user who starts a checkout
+  // and returns more than PENDING_CHECKOUT_WINDOW_MS later, before the `paid` webhook has
+  // landed, sails past it and starts a second live checkout. Closing it properly needs a
+  // state-based check (e.g. reconciling with the provider, or a unique partial index over a
+  // user's in-flight checkouts) rather than a longer window, which would only trade
+  // double-billing for blocking legitimate retries.
   const pendingSince = new Date(Date.now() - PENDING_CHECKOUT_WINDOW_MS);
   const pendingCheckout = await db
     .select({ id: purchases.id })
@@ -80,7 +67,7 @@ export async function POST() {
     userId: session.user.id,
     amountCents: PRICE_CENTS,
     returnUrl: `${appUrl}/ideas`,
-    completionUrl: `${appUrl}/account?purchase=success`,
+    completionUrl: `${appUrl}/ideas?purchase=success`,
   });
 
   try {

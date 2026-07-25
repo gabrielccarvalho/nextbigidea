@@ -16,7 +16,8 @@ export interface CheckoutResult {
  * way: AbacatePay generates the renewal checkout itself and it carries `externalId: null`.
  * The only join key is `providerSubscriptionId`, captured when the subscription was created.
  *
- * `cancelled` deliberately carries no access implication — see computeAccess in lib/access.ts.
+ * `cancelled` deliberately carries no access implication — see getViewerAccess in
+ * lib/viewer-access.ts.
  */
 export type PaymentEvent =
   | { type: "paid"; providerChargeId: string; providerSubscriptionId?: string; externalId?: string }

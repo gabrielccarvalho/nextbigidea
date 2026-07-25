@@ -19,7 +19,7 @@ export const COMPANY = {
 export const PRICING = {
   amountBRL: "R$110",
   amountUSDApprox: "≈US$20",
-  term: "year",
+  paymentModel: "one-time payment",
   freeIdeaCount: 5,
   refundDays: 7,
 } as const;
@@ -130,19 +130,26 @@ export const WHY_EVIDENCE = {
 
 export const PAYWALL_CTA = {
   headlinePrefix: "Unlock every idea",
-  subtext: "Card payment, renews annually. Cancel any time — access runs to the end of your paid period.",
+  subtext:
+    "One payment, made once. Every idea published so far, and every idea we publish after.",
   ctaAuthenticated: "Unlock now",
   ctaSignedOut: "Sign in to unlock",
+  pendingMessage:
+    "A checkout you started recently is still processing. Give it a minute, then reload this page.",
+  errorMessage: "Something went wrong starting checkout. Please try again.",
 } as const;
 
 export const IDEAS_PAGE = {
   title: "SaaS demand ideas",
   subhead: "Sourced from Hacker News, GitHub, and Stack Exchange. New ideas every month.",
+  // Rendered as "{n} more ideas are locked" above the paywall CTA. A count is
+  // the ONLY thing the locked section may reveal — never titles or niches.
+  lockedCountSuffix: "more ideas are locked",
 } as const;
 
 export const IDEA_DETAIL = {
   lockedMessage:
-    "This idea is locked. Subscribe to see the demand evidence, sources, MRR estimate, and validation signals.",
+    "This idea is locked. One payment unlocks the demand evidence, sources, MRR estimate, and validation signals — here and on every other idea.",
   opportunityHeading: "The opportunity",
   mrrHeading: "MRR estimate",
   mrrBody:
@@ -164,23 +171,16 @@ export const LOGIN = {
       body: "With the methodology shown, not a number pulled from air.",
     },
     {
-      title: "Everything published, plus weekly drops",
-      body: "Every idea live today and each new one while you're subscribed.",
+      title: "Everything published, plus what comes next",
+      body: "Every idea live today and each new one we publish, covered by the same single payment.",
     },
   ],
-  offer: `Full access · ${PRICING.amountBRL}/${PRICING.term} · cancel anytime`,
+  offer: `Full access · ${PRICING.amountBRL} · ${PRICING.paymentModel}`,
   welcomeHeading: "Welcome",
   welcomeLede: "Continue with your Google account to unlock the full database.",
   cta: "Continue with Google",
   reassurance:
     "We only use this to sign you in — no posting to your account, no email spam.",
-} as const;
-
-export const ACCOUNT_PAGE = {
-  title: "Your account",
-  accessActiveHeading: "Access active",
-  freePlanMessage: `You're on the free plan (${PRICING.freeIdeaCount} ideas).`,
-  ideasLinkLabel: "Go to the ideas",
 } as const;
 
 export const PROOF_BAR = {
@@ -197,7 +197,7 @@ export const LEGAL_PAGE = {
 
 export const PRICING_SECTION = {
   eyebrow: "Pricing",
-  title: "One plan. Cancel whenever.",
+  title: "One payment. Every idea.",
   free: {
     name: "Free",
     price: "R$0",
@@ -211,16 +211,15 @@ export const PRICING_SECTION = {
     name: "Full access",
     items: [
       "Every idea published so far",
-      "Every idea published while your access is active",
+      "Every idea published after — included",
       "Source links on every idea",
       "New ideas every month",
     ],
   },
   terms: [
-    "Renews annually until you cancel.",
-    "Cancel any time — access continues to the end of the paid period.",
+    "One-time payment — nothing recurs, nothing to cancel.",
     "Card payments only.",
-    "7-day refund on your first purchase.",
+    "7-day refund, no questions asked.",
   ],
 } as const;
 
@@ -233,20 +232,20 @@ export const FAQ = {
       a: "New ideas are added every month. We scan sources every week, but we only publish once we have enough signal to score an idea properly.",
     },
     {
-      q: "What happens when my access expires?",
-      a: "You go back to the 5 free ideas. Nothing is deleted, and resubscribing restores everything immediately.",
+      q: "Does my access expire?",
+      a: "No. You pay once, and everything published today plus every idea added after stays open to you.",
     },
     {
-      q: "Can I cancel?",
-      a: "Yes, any time. Your access continues until the end of the period you already paid for.",
+      q: "Do I pay again next year?",
+      a: "No. You pay a single time. There is nothing to cancel and no second charge coming.",
     },
     {
       q: "Do you offer refunds?",
-      a: "Yes — 7 days on your first purchase, no questions asked.",
+      a: "Yes — 7 days, no questions asked.",
     },
     {
       q: "Are ideas exclusive to me?",
-      a: "No. Every subscriber sees the same ideas. What you're paying for is the evidence, not exclusivity.",
+      a: "No. Everyone who has paid sees the same ideas. What you're paying for is the evidence, not exclusivity.",
     },
     {
       q: "Where do the ideas come from?",
