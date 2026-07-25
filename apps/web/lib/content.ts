@@ -46,6 +46,18 @@ export type SpecimenEvidence = {
   source: (typeof SOURCES)[number]["name"];
 };
 
+// Stat vocabulary shared by the landing specimen, the real idea cards, and the
+// idea detail stat band. The landing page promises every published entry
+// carries the same receipts as the example — sharing the labels keeps the
+// promise and the product from drifting apart.
+export const IDEA_LABELS = {
+  score: "Demand",
+  asks: "Asks",
+  mrr: "Est. MRR",
+  sources: "Sources",
+  competition: "What exists today",
+} as const;
+
 // Illustrative, NOT a real published entry — the same standard as SAMPLE_IDEAS
 // below. `exampleTag` renders on the card, and evidence rows deliberately carry
 // no href. See docs/superpowers/specs/2026-07-20-landing-page-rework-design.md,
@@ -57,13 +69,7 @@ export const SPECIMEN = {
     "One entry, in full. Every published idea carries the same receipts — the score, the numbers, and the posts behind them — so you can judge it like you found it yourself.",
   exampleTag: "Example entry",
   evidenceHeading: "What people actually said",
-  labels: {
-    score: "Demand",
-    asks: "Asks",
-    mrr: "Est. MRR",
-    sources: "Sources",
-    competition: "What exists today",
-  },
+  labels: IDEA_LABELS,
   idea: {
     niche: "Finance ops",
     title: "Invoice autopilot",
@@ -140,8 +146,13 @@ export const PAYWALL_CTA = {
 } as const;
 
 export const IDEAS_PAGE = {
+  eyebrow: "The catalog",
   title: "Ideas people are asking for",
   subhead: "Pulled from Hacker News, GitHub, and Stack Exchange. Every one scored and sourced. New ideas every month.",
+  // Rendered as "{n} ideas published" in the page header.
+  countSuffix: "ideas published",
+  // Chip on cards for the free-sample entries.
+  freeTag: "Free sample",
   // Rendered as "{n} more ideas are locked" above the paywall CTA. A count is
   // the ONLY thing the locked section may reveal — never titles or niches.
   lockedCountSuffix: "more ideas are locked",
