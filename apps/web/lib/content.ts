@@ -31,13 +31,13 @@ export const SOURCES = [
 ] as const;
 
 export const HERO = {
-  eyebrow: "Evidence, not brainstorms",
-  headline: "Every idea here has someone asking for it.",
+  eyebrow: "Found in public. Ready to build.",
+  headline: "People are literally asking to pay for products that don't exist.",
   subhead:
-    "Every week we read public posts across Hacker News, GitHub, and Stack Exchange looking for people describing a product that doesn't exist yet — then score the strongest signals and link each one back to the posts that prove it. Nobody's built them yet.",
-  primaryCta: "Browse the ideas",
+    "We read thousands of posts on Hacker News, GitHub, and Stack Exchange and pull out the ones where people describe a product they'd pay for — with links to every post. Nobody's built these yet. That's the whole point.",
+  primaryCta: "Show me the ideas",
   primaryHref: "/ideas",
-  secondaryCta: "See what you get",
+  secondaryCta: `See what ${PRICING.amountBRL} buys`,
   secondaryHref: "/#what-you-get",
 } as const;
 
@@ -52,9 +52,9 @@ export type SpecimenEvidence = {
 // "Content integrity". Enforced by lib/content.test.ts.
 export const SPECIMEN = {
   eyebrow: "What you get",
-  sectionTitle: "This is one of them.",
+  sectionTitle: "This is what you're buying.",
   intro:
-    "One entry, in full. Every published idea carries the same evidence, so you can judge it the way you'd judge your own research.",
+    "One entry, in full. Every published idea carries the same receipts — the score, the numbers, and the posts behind them — so you can judge it like you found it yourself.",
   exampleTag: "Example entry",
   evidenceHeading: "What people actually said",
   labels: {
@@ -91,35 +91,35 @@ export const DISSECTION = {
       n: "01",
       key: "score",
       title: "The score",
-      body: "0–100, from how many people asked and how strongly they asked. A 94 means this one came up constantly, in frustrated language.",
+      body: "0–100, from how many people asked and how loudly. A 94 means it came up constantly, in frustrated language. Frustration is demand.",
     },
     {
       n: "02",
       key: "numbers",
       title: "The numbers",
-      body: "Ask count is distinct posts, not upvotes. The revenue figure is a range derived from comparable products — a range, because that is what it honestly is.",
+      body: "Asks are distinct posts, not upvotes. The revenue figure is a range built from comparable products — a range, because that's what it honestly is.",
     },
     {
       n: "03",
       key: "receipts",
       title: "The receipts",
-      body: "Every claim traces to a post. On a published entry these are live links you can go read yourself.",
+      body: "Every claim traces to a post. On a published entry these are live links — go read the demand yourself before you spend a weekend on it.",
     },
     {
       n: "04",
       key: "catch",
       title: "The catch",
-      body: "What already exists, and where it falls short of what people asked for.",
+      body: "What already exists, and exactly where it falls short of what people asked for. That gap is your way in.",
     },
   ],
 } as const;
 
 export const WHY_EVIDENCE = {
-  eyebrow: "Why evidence wins",
+  eyebrow: "Why this beats guessing",
   title: "Why not just ask an AI for fifty ideas?",
-  intro: "You can. You'll get fifty plausible sentences. Here's the difference.",
+  intro: "You can. You'll get fifty plausible sentences and zero proof anyone will pay. Here's the difference.",
   rows: [
-    { generated: "Plausible-sounding ideas invented on demand", ours: "Ideas extracted from posts real people wrote" },
+    { generated: "Plausible-sounding ideas invented on demand", ours: "Ideas pulled from posts real people wrote" },
     { generated: "No way to tell if anyone wants it", ours: "Ask counts from named sources" },
     { generated: "Confident revenue guesses", ours: "Ranges derived from comparable products, shown as ranges" },
     { generated: "Unfalsifiable", ours: "Every claim links to the post behind it" },
@@ -129,10 +129,10 @@ export const WHY_EVIDENCE = {
 } as const;
 
 export const PAYWALL_CTA = {
-  headlinePrefix: "Unlock every idea",
+  headlinePrefix: "Every idea, one payment",
   subtext:
-    "One payment, made once. Every idea published so far, and every idea we publish after.",
-  ctaAuthenticated: "Unlock now",
+    "Pay once and it's all open — every idea published so far, and every one we publish after. No second charge, ever.",
+  ctaAuthenticated: "Unlock everything",
   ctaSignedOut: "Sign in to unlock",
   pendingMessage:
     "A checkout you started recently is still processing. Give it a minute, then reload this page.",
@@ -140,8 +140,8 @@ export const PAYWALL_CTA = {
 } as const;
 
 export const IDEAS_PAGE = {
-  title: "SaaS demand ideas",
-  subhead: "Sourced from Hacker News, GitHub, and Stack Exchange. New ideas every month.",
+  title: "Ideas people are asking for",
+  subhead: "Pulled from Hacker News, GitHub, and Stack Exchange. Every one scored and sourced. New ideas every month.",
   // Rendered as "{n} more ideas are locked" above the paywall CTA. A count is
   // the ONLY thing the locked section may reveal — never titles or niches.
   lockedCountSuffix: "more ideas are locked",
@@ -149,7 +149,7 @@ export const IDEAS_PAGE = {
 
 export const IDEA_DETAIL = {
   lockedMessage:
-    "This idea is locked. One payment unlocks the demand evidence, sources, MRR estimate, and validation signals — here and on every other idea.",
+    "This idea is locked. One payment opens the demand evidence, sources, MRR estimate, and validation signals — here, and on every other idea, including the ones we haven't published yet.",
   opportunityHeading: "The opportunity",
   mrrHeading: "MRR estimate",
   mrrBody:
@@ -160,11 +160,11 @@ export const IDEA_DETAIL = {
 } as const;
 
 export const LOGIN = {
-  headline: "Sign in to see every idea backed by real demand.",
+  headline: "See who's asking, and what they're asking for.",
   bullets: [
     {
       title: "The original posts",
-      body: "Who asked for it, and how many people did.",
+      body: "Real people, real complaints — who asked, and how many.",
     },
     {
       title: "A conservative MRR estimate",
@@ -172,12 +172,12 @@ export const LOGIN = {
     },
     {
       title: "Everything published, plus what comes next",
-      body: "Every idea live today and each new one we publish, covered by the same single payment.",
+      body: "One payment covers every idea live today and every idea we add after.",
     },
   ],
   offer: `Full access · ${PRICING.amountBRL} · ${PRICING.paymentModel}`,
   welcomeHeading: "Welcome",
-  welcomeLede: "Continue with your Google account to unlock the full database.",
+  welcomeLede: "Continue with your Google account to open the full database.",
   cta: "Continue with Google",
   reassurance:
     "We only use this to sign you in — no posting to your account, no email spam.",
@@ -197,7 +197,7 @@ export const LEGAL_PAGE = {
 
 export const PRICING_SECTION = {
   eyebrow: "Pricing",
-  title: "One payment. Every idea.",
+  title: `${PRICING.amountBRL}. Once. Everything.`,
   free: {
     name: "Free",
     price: "R$0",
@@ -245,7 +245,7 @@ export const FAQ = {
     },
     {
       q: "Are ideas exclusive to me?",
-      a: "No. Everyone who has paid sees the same ideas. What you're paying for is the evidence, not exclusivity.",
+      a: "No. Everyone who pays sees the same list. You're paying for the evidence, not exclusivity — the edge is in moving first.",
     },
     {
       q: "Where do the ideas come from?",
@@ -259,9 +259,9 @@ export const FAQ = {
 } as const;
 
 export const FINAL_CTA = {
-  title: "Stop guessing. Go read what people are asking for.",
-  body: "5 ideas are free. No account needed to look around.",
-  cta: "Browse the ideas",
+  title: "The demand is already out there. It's just sitting in other people's posts.",
+  body: "5 ideas are free. No account, no card — go look.",
+  cta: "Show me the ideas",
   href: "/ideas",
 } as const;
 
@@ -296,6 +296,21 @@ export const FOOTER = {
       links: [{ label: COMPANY.email, href: `mailto:${COMPANY.email}` }],
     },
   ],
+} as const;
+
+// Consumed by app/layout.tsx. Lives here — not in the layout — so the
+// content.test.ts corpus rules (banned words, unlicensed sources) cover the
+// site metadata too; Reddit/Product Hunt once survived in the layout because
+// metadata strings sat outside this module.
+export const METADATA = {
+  titleDefault: `${COMPANY.name} — Products people are already asking for`,
+  titleTemplate: `%s · ${COMPANY.name}`,
+  description:
+    "We read public posts on Hacker News, GitHub, and Stack Exchange for people describing products that don't exist yet — then score the demand and link every idea back to the posts that prove it.",
+  socialTitle: "Products people are already asking for",
+  socialDescription:
+    "Scored, sourced demand signals from Hacker News, GitHub, and Stack Exchange. Every idea links back to the posts behind it.",
+  ogImageAlt: `${COMPANY.name} — scored SaaS ideas with links to the posts that prove demand`,
 } as const;
 
 // --- Illustrative data for the hero animation ---

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { PAYWALL_CTA } from "@/lib/content";
 import { E2E, readRun } from "./support/fixtures";
 import { sql } from "./support/sql";
 import { postWebhook, subscriptionCompleted } from "./support/webhook";
@@ -59,7 +60,7 @@ test.describe("purchase flow", () => {
     // both fields being absent is a real assertion about access, not about styling.
     await expect(page.getByText(E2E.ideaTitle, { exact: true })).toHaveCount(0);
     await expect(page.getByText(E2E.ideaOneLiner)).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Unlock now" })).toBeVisible();
+    await expect(page.getByRole("button", { name: PAYWALL_CTA.ctaAuthenticated })).toBeVisible();
 
     // ---- 2. Start checkout. THIS is the step that calls AbacatePay for real. -----------------
     // The response body must be captured HERE, inside the route handler, rather than via
@@ -82,7 +83,7 @@ test.describe("purchase flow", () => {
       });
     });
 
-    await page.getByRole("button", { name: "Unlock now" }).click();
+    await page.getByRole("button", { name: PAYWALL_CTA.ctaAuthenticated }).click();
     const checkout = await checkoutCall;
 
     // A failure here is the whole point of the suite. Surface the provider's own error text
@@ -157,7 +158,7 @@ test.describe("purchase flow", () => {
     await expect(page.getByText(E2E.ideaTitle, { exact: true })).toBeVisible();
     await expect(page.getByText(E2E.ideaOneLiner)).toBeVisible();
     // The paywall CTA is gone once access is granted.
-    await expect(page.getByRole("button", { name: "Unlock now" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: PAYWALL_CTA.ctaAuthenticated })).toHaveCount(0);
   });
 });
 
@@ -170,7 +171,7 @@ test.describe("signed out", () => {
 
     // No checkout button at all — signed-out users get a link to /login instead of a
     // checkout call that would 401.
-    await expect(page.getByRole("button", { name: "Unlock now" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: PAYWALL_CTA.ctaAuthenticated })).toHaveCount(0);
 
     await page.getByRole("link", { name: "Sign in to unlock" }).click();
     await expect(page).toHaveURL(/\/login\?next=%2Fideas/);

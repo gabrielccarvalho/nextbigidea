@@ -3,6 +3,7 @@ import { Geist_Mono, Figtree } from "next/font/google"
 
 import "@workspace/ui/globals.css"
 import { cn } from "@workspace/ui/lib/utils"
+import { COMPANY, METADATA } from "@/lib/content"
 
 const figtree = Figtree({ subsets: ["latin"], variable: "--font-sans" })
 
@@ -14,31 +15,28 @@ const fontMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
   title: {
-    default: "NextBigIdea — SaaS ideas people are already asking for",
-    template: "%s · NextBigIdea",
+    default: METADATA.titleDefault,
+    template: METADATA.titleTemplate,
   },
-  description:
-    "Every week we read public posts across Reddit, Hacker News, and Product Hunt for people describing products that don't exist yet — then score them and link back to the posts that prove demand.",
+  description: METADATA.description,
   openGraph: {
     type: "website",
-    siteName: "NextBigIdea",
-    title: "SaaS ideas people are already asking for",
-    description:
-      "Scored, sourced demand signals from Reddit, Hacker News, and Product Hunt. Every idea links back to the posts behind it.",
+    siteName: COMPANY.name,
+    title: METADATA.socialTitle,
+    description: METADATA.socialDescription,
     images: [
       {
         url: "/og.png",
         width: 1200,
         height: 630,
-        alt: "NextBigIdea — scored SaaS ideas with links to the posts that prove demand",
+        alt: METADATA.ogImageAlt,
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "SaaS ideas people are already asking for",
-    description:
-      "Scored, sourced demand signals from Reddit, Hacker News, and Product Hunt.",
+    title: METADATA.socialTitle,
+    description: METADATA.socialDescription,
     images: ["/og.png"],
   },
 }
