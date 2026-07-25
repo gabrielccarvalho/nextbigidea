@@ -32,7 +32,7 @@ export const SOURCES = [
 
 export const HERO = {
   eyebrow: "Found in public. Ready to build.",
-  headline: "People are literally asking to pay for products that don't exist.",
+  headline: "People are begging for products that don't exist.",
   subhead:
     "We read thousands of posts on Hacker News, GitHub, and Stack Exchange and pull out the ones where people describe a product they'd pay for — with links to every post. Nobody's built these yet. That's the whole point.",
   primaryCta: "Show me the ideas",

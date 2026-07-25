@@ -36,7 +36,10 @@ edgy-insider ("your next product is buried in someone else's complaint").
 
 ### HERO
 - eyebrow: `Found in public. Ready to build.`
-- headline: `People are literally asking to pay for products that don't exist.`
+- headline: `People are begging for products that don't exist.`
+  (shortened from "People are literally asking to pay for products that don't
+  exist." — at 63 chars it wrapped to three lines of display type in the
+  max-w-3xl hero; ~50 chars matches the layout's sizing assumptions)
 - subhead: `We read thousands of posts on Hacker News, GitHub, and Stack Exchange
   and pull out the ones where people describe a product they'd pay for — with
   links to every post. Nobody's built these yet. That's the whole point.`
