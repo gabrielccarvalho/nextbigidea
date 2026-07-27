@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type Stripe from "stripe";
-import { parseStripeEvent } from "./stripe";
+import { parseStripeEvent, StripeProvider } from "./stripe";
 
 /**
  * Covers the event→PaymentEvent mapping, which is where a mistake silently grants or revokes
@@ -147,6 +147,48 @@ describe("refunds", () => {
     expect(
       parseStripeEvent(event("charge.refunded", { payment_intent: null, refunded: true })),
     ).toEqual({ type: "other" });
+  });
+});
+
+describe("misconfiguration is never mistaken for a forged webhook", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  // REGRESSION. `null` from verifyAndParseWebhook makes the route answer 400, which Stripe
+  // treats as final and never redelivers. An unset environment variable used to be caught by
+  // the same try/catch as a bad signature and returned as null — so a deploy missing
+  // STRIPE_WEBHOOK_SECRET would have permanently dropped EVERY real payment webhook while
+  // logging "failed signature verification". Money collected, nothing recorded, no retry.
+  //
+  // Config errors must throw instead, so the route 500s and Stripe keeps redelivering until
+  // someone fixes the env. These assert "throws", NOT "returns null" — that distinction is the
+  // entire point of the test.
+  it("throws (not returns null) when the webhook secret is unset", async () => {
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_placeholder");
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", "");
+
+    await expect(
+      new StripeProvider().verifyAndParseWebhook("{}", "t=1,v1=whatever"),
+    ).rejects.toThrow(/STRIPE_WEBHOOK_SECRET/);
+  });
+
+  it("still rejects a signature-less callback as a permanent 400", async () => {
+    // The other side of the coin: with config present, a missing signature IS a forged
+    // callback and must stay a permanent reject.
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_placeholder");
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_placeholder");
+
+    await expect(new StripeProvider().verifyAndParseWebhook("{}", null)).resolves.toBeNull();
+  });
+
+  it("rejects a genuinely bad signature as a permanent 400", async () => {
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_placeholder");
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_placeholder");
+
+    await expect(
+      new StripeProvider().verifyAndParseWebhook("{}", "t=1,v1=deadbeef"),
+    ).resolves.toBeNull();
   });
 });
 

@@ -232,6 +232,20 @@ export class StripeProvider implements PaymentProvider {
     rawBody: string,
     signature: string | null,
   ): Promise<PaymentEvent | null> {
+    // Configuration is resolved BEFORE the try block, and that placement is load-bearing.
+    //
+    // `null` from this method means "reject permanently" — the route answers 400 and Stripe
+    // never redelivers. That is the right answer for a forged callback and the CATASTROPHIC
+    // answer for an unset environment variable: every genuine payment webhook would be dropped,
+    // permanently, while the log claimed the signature was bad. Money collected, nothing
+    // recorded, no redelivery to repair it.
+    //
+    // A missing key is an operator error, not a bad callback, so it must throw past this method
+    // and 500 the route — which Stripe retries, and which is loud. Only a real verification
+    // failure below returns null.
+    const stripe = client();
+    const webhookSecret = requireEnv("STRIPE_WEBHOOK_SECRET");
+
     if (!signature) return null;
 
     let event: Stripe.Event;
@@ -243,11 +257,7 @@ export class StripeProvider implements PaymentProvider {
       // work on the Node runtime this route uses today, but only the async one works under a
       // SubtleCrypto-backed provider. That keeps this route portable if it is ever moved to a
       // runtime without synchronous crypto, at no cost here.
-      event = await client().webhooks.constructEventAsync(
-        rawBody,
-        signature,
-        requireEnv("STRIPE_WEBHOOK_SECRET"),
-      );
+      event = await stripe.webhooks.constructEventAsync(rawBody, signature, webhookSecret);
     } catch (err) {
       console.error(`[payments] rejected a webhook that failed signature verification:`, err);
       return null;
