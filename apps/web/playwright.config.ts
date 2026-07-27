@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 import { E2E_BASE_URL, E2E_PORT, loadEnv, STORAGE_STATE, WEB_ROOT } from "./e2e/support/env";
 
-// The suite talks to the local Postgres/Neon-proxy stack and to AbacatePay's dev API, both of
+// The suite talks to the local Postgres/Neon-proxy stack and to Stripe's test-mode API, both of
 // which are configured in apps/web/.env. Load it here so the config, global setup and the
 // spawned dev server all see the same values.
 loadEnv();
@@ -30,7 +30,7 @@ export default defineConfig({
     cwd: WEB_ROOT,
     url: E2E_BASE_URL,
     // Never adopt a stray server: it might be a `pnpm dev` on different env (the exact class of
-    // bug this suite exists to catch — a stale ABACATEPAY_PRODUCT_ID lives in the server's env).
+    // bug this suite exists to catch — a stale STRIPE_PRICE_ID lives in the server's env).
     reuseExistingServer: false,
     timeout: 180_000,
     stdout: "pipe",

@@ -17,28 +17,38 @@ server is already running" whatever port it was given, so the suite sets `NEXT_D
 
 - The docker stack from `docker-compose.yml` is up.
 - `apps/web/.env` is populated — in particular `DATABASE_URL`, `NEON_LOCAL_PROXY=true`,
-  `BETTER_AUTH_SECRET`, and the four `ABACATEPAY_*` values. `global-setup.ts` fails fast and
+  `BETTER_AUTH_SECRET`, and the three `STRIPE_*` values. `global-setup.ts` fails fast and
   names the missing variable.
+- Those Stripe credentials must be **test mode** (`sk_test_…` / `rk_test_…`). The suite creates
+  real Checkout Sessions; a live key would put them on your live account.
 
 ## What is real, and what is not
 
 Real: the session (a genuine `session` row + a correctly signed Better Auth cookie), the
-`POST /v2/subscriptions/create` call to **AbacatePay's live dev API**, the pending/paid rows,
-the HMAC-verified webhook, and the rendered access state.
+`POST /v1/checkout/sessions` call to **Stripe's test-mode API**, the pending/paid/refunded rows,
+the signature-verified webhooks, and the rendered access state.
 
 Simulated: the Google OAuth handshake (Google blocks automated browsers) and typing a card into
-AbacatePay's hosted page (theirs, no test-card flow). The webhook is delivered for the **real**
-charge id the API just returned.
+Stripe's hosted page (theirs). Webhooks are delivered for the **real** session id the API just
+returned, signed with the SDK's own `generateTestHeaderStringAsync` — not a hand-rolled HMAC,
+which would be a second implementation of the thing under test and free to drift from it.
 
 Checkout is intentionally **not** mocked. A version of this suite that POSTed straight to the
-webhook is why a `ABACATEPAY_PRODUCT_ID` pointing at a product with no billing `cycle` reached
-production with a green build.
+webhook is why a misconfigured product id reached production with a green build. The real call
+also exercises `assertPriceMatches()`, so a Price edited in the Stripe dashboard to something
+other than `PRICE_CENTS` fails here rather than in production.
+
+## What the purchase spec covers
+
+Locked → real checkout → paid → unlocked → **partial** refund (access survives) → **full**
+refund (access revoked). Plus a forged, unsigned webhook, which must be rejected `400` and write
+nothing.
 
 ## Side effects
 
-Each run creates a real dev-mode subscription record in the AbacatePay dashboard. No money moves
-(`abc_dev_…` key), but they accumulate. The test user is regenerated every run because AbacatePay
-deduplicates subscription creation on `externalId` and skips product validation on a repeat —
-a fixed user would make the suite pass off their cache regardless of configuration.
+Each run creates a real test-mode Checkout Session in the Stripe dashboard. No money moves, but
+they accumulate. The test user is regenerated every run because a paid row grants access
+permanently — a fixed user would arrive at its second run already owning access, and checkout
+would short-circuit to `{ alreadyActive: true }` before reaching Stripe at all.
 
 Database rows are namespaced `e2e_` / `e2e-` and deleted both before seeding and in teardown.

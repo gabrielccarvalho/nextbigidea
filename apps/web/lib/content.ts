@@ -3,7 +3,7 @@
 // Copy rules enforced by lib/content.test.ts:
 //   - no banned marketing adjectives or invented social proof
 //   - exactly three sources (Hacker News, GitHub, Stack Exchange)
-//   - price is stated in BRL; USD only ever as a parenthetical
+//   - price is stated in USD and must equal PRICE_CENTS; never quote BRL
 //   - we scan weekly, we publish monthly — never "new ideas weekly"
 
 export const COMPANY = {
@@ -16,9 +16,11 @@ export const COMPANY = {
   lastUpdated: "July 20, 2026",
 } as const;
 
+// `amount` is the price the copy promises and MUST match PRICE_CENTS in
+// lib/payments/provider.ts, which is what the purchase row records. content.test.ts
+// pins the two together so they cannot drift.
 export const PRICING = {
-  amountBRL: "R$110",
-  amountUSDApprox: "≈US$20",
+  amount: "$20",
   paymentModel: "one-time payment",
   freeIdeaCount: 5,
   refundDays: 7,
@@ -37,7 +39,7 @@ export const HERO = {
     "We read thousands of posts on Hacker News, GitHub, and Stack Exchange and pull out the ones where people describe a product they'd pay for — with links to every post. Nobody's built these yet. That's the whole point.",
   primaryCta: "Show me the ideas",
   primaryHref: "/ideas",
-  secondaryCta: `See what ${PRICING.amountBRL} buys`,
+  secondaryCta: `See what ${PRICING.amount} buys`,
   secondaryHref: "/#what-you-get",
 } as const;
 
@@ -186,7 +188,7 @@ export const LOGIN = {
       body: "One payment covers every idea live today and every idea we add after.",
     },
   ],
-  offer: `Full access · ${PRICING.amountBRL} · ${PRICING.paymentModel}`,
+  offer: `Full access · ${PRICING.amount} · ${PRICING.paymentModel}`,
   welcomeHeading: "Welcome",
   welcomeLede: "Continue with your Google account to open the full database.",
   cta: "Continue with Google",
@@ -208,10 +210,10 @@ export const LEGAL_PAGE = {
 
 export const PRICING_SECTION = {
   eyebrow: "Pricing",
-  title: `${PRICING.amountBRL}. Once. Everything.`,
+  title: `${PRICING.amount}. Once. Everything.`,
   free: {
     name: "Free",
-    price: "R$0",
+    price: "$0",
     items: [
       "5 ideas, chosen by us",
       "Full detail on those 5",

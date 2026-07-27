@@ -35,10 +35,10 @@ export default function TermsPage() {
 
       <h2>3. Payment and billing</h2>
       <p>
-        Full access costs {PRICING.amountBRL} ({PRICING.amountUSDApprox}), charged once to a
-        payment card. Prices are stated and charged in Brazilian reais; any figure shown in
-        another currency is an approximation for reference only, and the amount billed will be
-        in reais.
+        Full access costs {PRICING.amount}, charged once to a payment card. Prices are stated
+        and charged in United States dollars. If your card is denominated in another currency,
+        your bank sets the conversion rate and may add its own fees; that conversion is outside
+        our control and the amount we charge is always the dollar figure shown above.
       </p>
       <ul>
         <li>

@@ -8,9 +8,11 @@ export default async function globalSetup() {
   // Fail fast and legibly rather than deep inside a test.
   required("DATABASE_URL");
   required("BETTER_AUTH_SECRET");
-  required("ABACATEPAY_API_KEY");
-  required("ABACATEPAY_PRODUCT_ID");
-  required("ABACATEPAY_WEBHOOK_SECRET");
+  // Must be TEST-mode credentials (`sk_test_…` / `rk_test_…`). The suite creates real Checkout
+  // Sessions, so a live key here would put real sessions on a live account.
+  required("STRIPE_SECRET_KEY");
+  required("STRIPE_PRICE_ID");
+  required("STRIPE_WEBHOOK_SECRET");
 
   await cleanup();
   const { cookieName, cookieValue } = await seedUserAndSession();

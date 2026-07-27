@@ -36,11 +36,8 @@ export function Pricing() {
             {PRICING_SECTION.paid.name}
           </h3>
           <p className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-bold tracking-tight">{PRICING.amountBRL}</span>
+            <span className="text-3xl font-bold tracking-tight">{PRICING.amount}</span>
             <span className="text-muted-foreground">{PRICING.paymentModel}</span>
-          </p>
-          <p className="mt-1 font-mono text-[0.65rem] text-muted-foreground">
-            {PRICING.amountUSDApprox}
           </p>
           <ul className="mt-6 space-y-2">
             {PRICING_SECTION.paid.items.map((item) => (
