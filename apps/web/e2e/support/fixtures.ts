@@ -22,18 +22,12 @@ const RUN_FILE = resolve(dirname(STORAGE_STATE), "run.json");
 /**
  * The user identity is regenerated on EVERY run, and that is load-bearing rather than tidiness.
  *
- * `POST /v2/subscriptions/create` is idempotent on `externalId` at AbacatePay: a repeat call with
- * an externalId that already has a subscription returns the ORIGINAL bill and never validates the
- * product it was handed. Verified directly against their API — sending a product with no billing
- * cycle (which a fresh externalId rejects with 400 "Subscription checkout only accepts products
- * with cycle defined") returns 200 and the previous bill when the externalId is reused.
- *
- * The checkout route passes our user id as `externalId`. So a suite with a FIXED test user stops
- * exercising provider-side validation after its first ever run — checkout keeps returning 200 off
- * AbacatePay's cache no matter how badly ABACATEPAY_PRODUCT_ID is misconfigured. That is a green
- * suite over a checkout flow that is broken in production, which is precisely the failure this
- * suite exists to prevent. A fresh id per run forces a real create, and a real validation, every
- * single time.
+ * The purchase spec drives a user from locked to paid. That paid row grants access forever under
+ * the one-time purchase model, so a FIXED test user would arrive at its second run already
+ * owning access: the checkout route's first guard would answer `{ alreadyActive: true }` and the
+ * test would never reach the Stripe call it exists to exercise. Teardown deletes the rows, but
+ * relying on teardown having succeeded is exactly the assumption that goes wrong after an
+ * interrupted run. A fresh id per run makes the starting state unconditional.
  */
 export function newRun(): Run {
   const runId = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;

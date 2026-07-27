@@ -91,27 +91,33 @@ export const purchases = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    provider: text("provider").notNull(), // abacatepay
+    // "stripe" for every row written since the Stripe migration; "abacatepay" on
+    // historical rows, which are deliberately left untouched — they record what the
+    // customer was actually charged at the time, in the currency they paid.
+    provider: text("provider").notNull(),
+    // Stripe Checkout Session id (cs_...). Written by the checkout route before any money
+    // moves, and the id `checkout.session.completed` carries back.
     providerChargeId: text("provider_charge_id").notNull(),
-    // AbacatePay's subscription id (subs_...). The join key for renewals: a
-    // `subscription.renewed` payload's checkout carries `externalId: null`, so the
-    // user CANNOT be resolved from the renewal itself. Captured on
-    // `subscription.completed`, where externalId is present.
-    providerSubscriptionId: text("provider_subscription_id"),
+    // Stripe PaymentIntent id (pi_...). Captured when the payment lands, because it is the
+    // ONLY identifier a later refund or dispute shares with the original payment: those
+    // callbacks describe a Charge, which knows its PaymentIntent but NOT the Checkout
+    // Session that created it. Without this column a refund cannot be matched to a row.
+    // Nullable: a `pending` row has no PaymentIntent id until the payment succeeds.
+    providerPaymentIntentId: text("provider_payment_intent_id"),
     amountCents: integer("amount_cents").notNull(),
-    currency: text("currency").notNull().default("BRL"),
+    currency: text("currency").notNull().default("USD"),
     status: text("status").notNull().default("pending"), // pending | paid | refunded
-    // The access window this payment bought. Nullable because the checkout route writes a
-    // `pending` row before any money moves — an abandoned checkout must not grant a period.
-    // Invariant: status = 'paid' implies both are non-null.
-    periodStart: timestamp("period_start", { withTimezone: true }),
-    periodEnd: timestamp("period_end", { withTimezone: true }),
     paidAt: timestamp("paid_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    // Set when AbacatePay confirms the subscription was cancelled. Access is NOT revoked —
-    // the customer keeps what they paid for through period_end. This exists so the account
-    // page can say "will not renew" instead of "active", and so the checkout guard knows
-    // to let them re-subscribe before their current period ends.
+
+    // --- Legacy AbacatePay subscription columns -------------------------------------------
+    // Retained so historical rows keep their meaning; NOTHING writes them any more. The
+    // Stripe integration charges once (`mode: "payment"`) and creates no subscription, so
+    // there are no renewals to stack a period onto and no cancellations to record. Access is
+    // "any row with status = 'paid'" — see lib/viewer-access.ts, which has never read these.
+    providerSubscriptionId: text("provider_subscription_id"),
+    periodStart: timestamp("period_start", { withTimezone: true }),
+    periodEnd: timestamp("period_end", { withTimezone: true }),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
     cancelledDueTo: text("cancelled_due_to"),
   },
@@ -121,6 +127,9 @@ export const purchases = pgTable(
   // guarantee rather than a race the application hopes to win.
   (t) => [
     uniqueIndex("purchases_provider_charge_uq").on(t.providerChargeId),
+    // Refunds and disputes resolve their target through this column, so it is on the hot
+    // path for every revocation.
+    index("purchases_provider_payment_intent_idx").on(t.providerPaymentIntentId),
     index("purchases_provider_subscription_idx").on(t.providerSubscriptionId),
   ],
 );

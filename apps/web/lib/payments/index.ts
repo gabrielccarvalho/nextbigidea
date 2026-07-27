@@ -1,7 +1,6 @@
-import { AbacatePayProvider } from "./abacatepay";
+import { StripeProvider } from "./stripe";
 import type { PaymentProvider } from "./provider";
 
 export function getPaymentProvider(): PaymentProvider {
-  // Swap here to add Stripe/Polar later behind the same interface.
-  return new AbacatePayProvider();
+  return new StripeProvider();
 }

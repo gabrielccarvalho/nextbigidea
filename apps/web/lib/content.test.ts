@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import * as content from "./content";
 import { COMPANY, PRICING, SOURCES, SPECIMEN } from "./content";
+// Safe to import here: provider.ts is deliberately free of `@workspace/db` and every
+// other impure import, so pulling it in costs no database connection. See its header.
+import { PRICE_CENTS } from "./payments/provider";
 
 // Recursively collect every string in the content module so a new section
 // can't opt out of these rules by being added later.
@@ -67,8 +70,8 @@ describe("copy rules", () => {
 });
 
 describe("pricing", () => {
-  it("states the price in BRL", () => {
-    expect(PRICING.amountBRL).toBe("R$110");
+  it("states the price in USD", () => {
+    expect(PRICING.amount).toBe("$20");
   });
 
   it("describes the charge as a one-time payment", () => {
@@ -76,13 +79,20 @@ describe("pricing", () => {
     expect(CORPUS).toContain("one-time payment");
   });
 
-  it("marks the USD figure as approximate", () => {
-    expect(PRICING.amountUSDApprox).toMatch(/^≈/);
+  it("never quotes a BRL price anywhere in the copy", () => {
+    // Stripe charges in USD (see lib/payments/stripe.ts). A leftover "R$110" would
+    // quote a price we no longer charge — the exact defect this suite exists to catch.
+    // Also covers the "≈US$20" approximation marker, which only made sense while the
+    // real charge was in another currency.
+    expect(CORPUS).not.toContain("r$");
+    expect(CORPUS).not.toContain("≈");
   });
 
-  it("never presents a bare USD price anywhere in the copy", () => {
-    // A "$20" not preceded by ≈ would read as the actual charge.
-    expect(CORPUS).not.toMatch(/(?<!≈)(?<!us)\$20\b/);
+  it("quotes the price the checkout actually charges", () => {
+    // PRICE_CENTS is the amount recorded on the purchase row; PRICING.amount is what
+    // the marketing copy promises. These drifting apart is a money bug, so pin them
+    // together here rather than trusting two constants to be edited in step.
+    expect(PRICING.amount).toBe(`$${PRICE_CENTS / 100}`);
   });
 });
 

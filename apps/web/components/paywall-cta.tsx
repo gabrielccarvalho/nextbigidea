@@ -30,10 +30,14 @@ export function PaywallCta({
       return;
     }
     // The route answers 200 with `{ alreadyActive: true }` when this user has
-    // already paid (reload — the server will re-render everything unlocked),
-    // or `{ pendingCheckout: true }` when a checkout started recently is still
-    // in flight. Neither carries a `url`, so each gets its own branch instead
-    // of navigating to `undefined`.
+    // already paid (reload — the server will re-render everything unlocked), or
+    // `{ pendingCheckout: true }` when they finished paying at Stripe but the
+    // confirming webhook hasn't landed yet. Neither carries a `url`, so each gets
+    // its own branch instead of navigating to `undefined`.
+    //
+    // A `url` may be a NEW Checkout Session or the one they already had open —
+    // the route resumes an in-flight session rather than minting a second one, so
+    // there is nothing to distinguish here.
     const body = (await res.json()) as {
       url?: string;
       alreadyActive?: boolean;
@@ -60,7 +64,7 @@ export function PaywallCta({
       {variant === "standalone" && (
         <>
           <h2 className="text-lg font-semibold">
-            {PAYWALL_CTA.headlinePrefix} — {PRICING.amountBRL}
+            {PAYWALL_CTA.headlinePrefix} — {PRICING.amount}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">{PAYWALL_CTA.subtext}</p>
         </>

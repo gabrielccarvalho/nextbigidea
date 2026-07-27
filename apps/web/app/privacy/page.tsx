@@ -58,7 +58,7 @@ export default function PrivacyPage() {
       <h2>5. Sub-processors</h2>
       <p>We share the minimum necessary data with:</p>
       <ul>
-        <li><strong>AbacatePay</strong> — payment processing.</li>
+        <li><strong>Stripe</strong> — payment processing. Card details are entered on Stripe&rsquo;s own checkout page and never reach our servers.</li>
         <li><strong>Google</strong> — optional sign-in.</li>
         <li><strong>Resend</strong> — transactional and sign-in emails.</li>
         <li><strong>Anthropic</strong> — analysis of public posts. We do not send your personal data to this provider.</li>
