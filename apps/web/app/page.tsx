@@ -6,10 +6,12 @@ import { WhyEvidence } from "@/components/sections/why-evidence";
 import { Pricing } from "@/components/sections/pricing";
 import { Faq } from "@/components/sections/faq";
 import { FinalCta } from "@/components/sections/final-cta";
+import { StructuredData } from "@/components/structured-data";
 
 export default function Home() {
   return (
     <>
+      <StructuredData />
       <SiteHeader />
       <main>
         <Hero />

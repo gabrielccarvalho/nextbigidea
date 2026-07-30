@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getPublishedIdeaBySlug, getEvidenceForIdea } from "@workspace/db";
@@ -8,6 +9,53 @@ import { SiteFooter } from "@/components/site-footer";
 import { toTeaserIdea } from "@/lib/teaser";
 import { IDEA_DETAIL, IDEA_LABELS } from "@/lib/content";
 import { formatMoneyRange, sourceDisplay } from "@/lib/format";
+import { clampDescription, lockedIdeaDescription } from "@/lib/seo";
+
+// Meta tags are read by crawlers, link-preview bots, and anyone running
+// `curl | grep meta` — none of whom ever hold a purchase. So this function is
+// treated as a permanently-unpaid view: it may only emit what the locked
+// branch of the page below already renders, which is `title` and `niche`.
+//
+// `oneLiner` is the single exception, and only when `isFree` — free ideas are
+// rendered in full by IdeaCard on /ideas to unpaid viewers, so their one-liner
+// is already public. Every other field (description, demandScore, mrr*,
+// competitionNotes, validationSignals, askCount) is paid copy and must not be
+// referenced here. This is a hand-checked boundary rather than a `TeaserIdea`
+// one because free ideas legitimately need more than the teaser carries.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const idea = await getPublishedIdeaBySlug(slug);
+
+  if (!idea) return { title: "Idea not found", robots: { index: false, follow: false } };
+
+  const canonical = `/ideas/${idea.slug}`;
+  const description = idea.isFree
+    ? clampDescription(idea.oneLiner)
+    : lockedIdeaDescription(idea.niche);
+
+  return {
+    title: idea.title,
+    description,
+    alternates: { canonical },
+    // Paid ideas stay out of the index for the same reason /ideas never lists
+    // them and the sitemap skips them: the catalog IS the product, and a slug
+    // spells out its title. `follow: true` still lets crawlers walk the links
+    // back out to /ideas and the paywall. Free samples index normally — they
+    // are the intended way in.
+    robots: idea.isFree ? undefined : { index: false, follow: true },
+    openGraph: {
+      type: "article",
+      url: canonical,
+      title: idea.title,
+      description,
+    },
+    twitter: { card: "summary_large_image", title: idea.title, description },
+  };
+}
 
 // The specimen card's micro-heading treatment, reused for every section so the
 // page scans as one system: label in mono smallcaps, content below.

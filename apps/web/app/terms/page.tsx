@@ -5,6 +5,7 @@ import { COMPANY, PRICING } from "@/lib/content";
 export const metadata: Metadata = {
   title: "Terms of Service",
   description: `The terms that govern your use of ${COMPANY.name}.`,
+  alternates: { canonical: "/terms" },
 };
 
 export default function TermsPage() {

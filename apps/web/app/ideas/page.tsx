@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { listPublishedIdeas } from "@workspace/db";
 import { getViewerAccess } from "@/lib/viewer-access";
 import { IdeaCard } from "@/components/idea-card";
@@ -7,6 +8,26 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { clampPage, IDEAS_PER_PAGE } from "@/lib/pagination";
 import { IDEAS_PAGE } from "@/lib/content";
+
+export const metadata: Metadata = {
+  title: IDEAS_PAGE.title,
+  description: IDEAS_PAGE.subhead,
+  // Paginated views (`?page=2`) point back at the bare /ideas URL. The paid
+  // listing is only ever paginated for signed-in buyers, so there is no
+  // crawlable page 2 to rank on its own.
+  alternates: { canonical: "/ideas" },
+  openGraph: {
+    type: "website",
+    url: "/ideas",
+    title: IDEAS_PAGE.title,
+    description: IDEAS_PAGE.subhead,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: IDEAS_PAGE.title,
+    description: IDEAS_PAGE.subhead,
+  },
+};
 
 // Shared by both branches so the free and paid views can't drift. The total
 // published count is safe to show unpaid viewers — they already see the free

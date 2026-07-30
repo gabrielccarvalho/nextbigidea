@@ -1,9 +1,18 @@
+import type { Metadata } from "next";
 import { desc } from "drizzle-orm";
 import { db, ideas } from "@workspace/db";
 import { requireAdmin } from "@/lib/require-admin";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { publishIdea, unpublishIdea, setFreeIdea } from "./actions";
+
+// Belt and braces with robots.txt's `Disallow: /admin` — the page lists every
+// idea including unpublished ones, so it should be unindexable even if the
+// disallow is ever loosened or ignored.
+export const metadata: Metadata = {
+  title: "Admin",
+  robots: { index: false, follow: false },
+};
 
 export default async function AdminPage() {
   try {

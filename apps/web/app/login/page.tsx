@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
@@ -6,6 +7,14 @@ import { safeNext } from "@/lib/safe-next";
 import { Logo } from "@/components/logo";
 import { LoginButton } from "@/components/login-button";
 import { LOGIN } from "@/lib/content";
+
+// A sign-in form has nothing to rank for, and every `?next=` variant would
+// otherwise look like a distinct page. Crawlable (so this tag is actually
+// read) but not indexable.
+export const metadata: Metadata = {
+  title: "Sign in",
+  robots: { index: false, follow: true },
+};
 
 // Dedicated sign-in surface. `next` is where the user came from (e.g. an idea page);
 // safeNext() reduces it to a trusted same-origin path before it becomes the OAuth callback.
