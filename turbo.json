@@ -8,6 +8,7 @@
       "outputs": [".next/**", "!.next/cache/**"],
       "env": [
         "CI",
+        "NODE_ENV",
         "NEXT_DIST_DIR",
         "DATABASE_URL",
         "NEON_LOCAL_PROXY",
@@ -15,6 +16,7 @@
         "NEON_LOCAL_WS_HOST",
         "BETTER_AUTH_URL",
         "BETTER_AUTH_SECRET",
+        "NEXT_PUBLIC_APP_URL",
         "GOOGLE_CLIENT_ID",
         "GOOGLE_CLIENT_SECRET",
         "RESEND_API_KEY",
